@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package aizel;
+
+// InferenceRequest is the request for inference.
+message InferenceRequest {
+    string input = 1;
+}
+
+// InferenceResponse is the response for inference.
+message InferenceResponse {
+    string output = 1;
+}
+
+// Inference is the inference service.
+service Inference {
+    rpc LlamaInference(InferenceRequest) returns (InferenceResponse) {}
+}
