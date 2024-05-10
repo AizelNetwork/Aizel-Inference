@@ -1,0 +1,26 @@
+[package]
+authors = ["Will Jiang <jianliiin96@gmail.com>"]
+edition = "2021"
+license = "MIT"
+name = "aizel_inference"
+publish = false
+version = "0.1.0"
+
+
+[[bin]]
+name = "inference-server"
+path = "src/server.rs"
+
+[[bin]]
+name = "inference-client"
+path = "src/client.rs"
+
+[dependencies]
+# Common dependencies
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+prost = "0.12"
+tonic = "0.11"
+llama_cpp_rs = "0.3.0"
+
+[build-dependencies]
+tonic-build = { version = "0.11.0", features = ["prost"] }
