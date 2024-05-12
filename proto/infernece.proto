@@ -9,7 +9,8 @@ message InferenceRequest {
 
 // InferenceResponse is the response for inference.
 message InferenceResponse {
-    string output = 1;
+    string input = 1;
+    string output = 2;
 }
 
 // Inference is the inference service.

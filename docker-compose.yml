@@ -1,0 +1,7 @@
+version: '3'
+services:
+  inference:
+    image: asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0
+    network_mode: "host"
+    pull_policy: never
+    restart: unless-stopped
