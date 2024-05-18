@@ -1,32 +1,24 @@
 use super::key::{generate_secp256k_keypair, PublicKey, SecretKey};
+use crate::utils::error::AizelError;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::BufWriter;
 use std::io::Write as _;
-use thiserror::Error;
-#[derive(Error, Debug)]
-pub enum ConfigFileError {
-    #[error("Failed to read config file '{file}': {message}")]
-    ReadError { file: String, message: String },
-
-    #[error("Failed to write config file '{file}': {message}")]
-    WriteError { file: String, message: String },
-}
 
 pub trait Export: Serialize + DeserializeOwned {
-    fn read(path: &str) -> Result<Self, ConfigFileError> {
+    fn read(path: &str) -> Result<Self, AizelError> {
         let reader = || -> Result<Self, std::io::Error> {
             let data = fs::read(path)?;
             Ok(serde_json::from_slice(data.as_slice())?)
         };
-        reader().map_err(|e| ConfigFileError::ReadError {
-            file: path.to_string(),
+        reader().map_err(|e| AizelError::FileError {
+            path: path.into(),
             message: e.to_string(),
         })
     }
 
-    fn write(&self, path: &str) -> Result<(), ConfigFileError> {
+    fn write(&self, path: &str) -> Result<(), AizelError> {
         let writer = || -> Result<(), std::io::Error> {
             let file = OpenOptions::new().create(true).write(true).open(path)?;
             let mut writer = BufWriter::new(file);
@@ -35,8 +27,8 @@ pub trait Export: Serialize + DeserializeOwned {
             writer.write_all(b"\n")?;
             Ok(())
         };
-        writer().map_err(|e| ConfigFileError::WriteError {
-            file: path.to_string(),
+        writer().map_err(|e| AizelError::FileError {
+            path: path.into(),
             message: e.to_string(),
         })
     }
