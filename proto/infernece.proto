@@ -11,9 +11,20 @@ message InferenceRequest {
 message InferenceResponse {
     string input = 1;
     string output = 2;
+    int32 code = 3;
+}
+
+message Empty {
+
+}
+
+message DemoAttestationResponse {
+    int32 code = 1;
+    string jwt_token = 2;
 }
 
 // Inference is the inference service.
 service Inference {
     rpc LlamaInference(InferenceRequest) returns (InferenceResponse) {}
+    rpc DemoAttestationReport(Empty) returns (DemoAttestationResponse) {}
 }

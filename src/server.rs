@@ -1,5 +1,5 @@
 use aizel::inference_server::{Inference, InferenceServer};
-use aizel::{InferenceRequest, InferenceResponse};
+use aizel::{DemoAttestationResponse, Empty, InferenceRequest, InferenceResponse};
 use chrono::Local;
 use env_logger::Env;
 use log::{error, info};
@@ -9,6 +9,7 @@ use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tonic::{transport::Server, Request, Response, Status};
 use url::Url;
+use aizel_inference::tee::{attestation::Attestation, provider::TEEProvider};
 pub mod aizel {
     tonic::include_proto!("aizel"); // The string specified here must match the proto package name
 }
@@ -43,6 +44,7 @@ impl Inference for AizelInference {
         let mut reply = InferenceResponse {
             input: llama_request.prompt.clone(),
             output: String::new(),
+            code: 0
         };
         match client
             .post(url)
@@ -60,15 +62,40 @@ impl Inference for AizelInference {
                     }
                     Err(e) => {
                         error!("failed to parse response: {:?}", e);
-                        reply.output = e.to_string()
+                        reply.output = e.to_string();
+                        reply.code = 1;
                     }
                 }
             }
             Err(e) => {
                 error!("failed to send request: {}", e);
-                reply.output = e.to_string()
+                reply.output = e.to_string();
+                reply.code = 1;
             }
         };
+        Ok(Response::new(reply))
+    }
+
+    async fn demo_attestation_report(
+        &self,
+        request: Request<Empty>,
+    ) -> Result<Response<DemoAttestationResponse>, Status> {
+        let mut reply = DemoAttestationResponse {
+            jwt_token: String::new(),
+            code: 0
+        };
+        let attestation = Attestation::new();
+        match attestation {
+            Ok(attestation) => {
+                let report = attestation.get_attestation_report().unwrap();
+                reply.jwt_token = report;
+            },
+            Err(e) => {
+                error!("failed to get attestation {}", e);
+                reply.jwt_token = String::new();
+                reply.code = 1;
+            }
+        }
         Ok(Response::new(reply))
     }
 }
