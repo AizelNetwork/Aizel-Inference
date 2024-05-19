@@ -1,6 +1,7 @@
 use super::gcp::GCP;
 use super::provider::{TEEProvider, TEEProviderType};
 use crate::utils::error::AizelError;
+
 pub struct Attestation {
     provider: Box<dyn TEEProvider>,
 }

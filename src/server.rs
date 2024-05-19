@@ -8,6 +8,7 @@ use serde_derive::{Deserialize, Serialize};
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tonic::{transport::Server, Request, Response, Status};
+
 use url::Url;
 use aizel_inference::tee::{attestation::Attestation, provider::TEEProvider};
 pub mod aizel {
@@ -100,6 +101,16 @@ impl Inference for AizelInference {
     }
 }
 
+fn print_token() {
+    tokio::spawn(async {
+        loop {
+            let attestation = Attestation::new().unwrap();
+            info!("token: {}", attestation.get_attestation_report().unwrap());
+            std::thread::sleep(std::time::Duration::from_secs(600));
+        }
+    });
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: std::net::SocketAddr = "[::1]:50051".parse()?;
@@ -122,6 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .init();
     info!("listening on {}", addr);
+    print_token();
     Server::builder()
         .add_service(InferenceServer::new(inference))
         .serve(addr)
