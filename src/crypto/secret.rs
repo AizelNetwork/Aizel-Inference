@@ -1,5 +1,5 @@
 use super::key::{generate_secp256k_keypair, PublicKey, SecretKey};
-use crate::utils::error::AizelError;
+use crate::utils::error::AizelError as Error;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
@@ -7,18 +7,18 @@ use std::io::BufWriter;
 use std::io::Write as _;
 
 pub trait Export: Serialize + DeserializeOwned {
-    fn read(path: &str) -> Result<Self, AizelError> {
+    fn read(path: &str) -> Result<Self, Error> {
         let reader = || -> Result<Self, std::io::Error> {
             let data = fs::read(path)?;
             Ok(serde_json::from_slice(data.as_slice())?)
         };
-        reader().map_err(|e| AizelError::FileError {
+        reader().map_err(|e| Error::FileError {
             path: path.into(),
             message: e.to_string(),
         })
     }
 
-    fn write(&self, path: &str) -> Result<(), AizelError> {
+    fn write(&self, path: &str) -> Result<(), Error> {
         let writer = || -> Result<(), std::io::Error> {
             let file = OpenOptions::new().create(true).write(true).open(path)?;
             let mut writer = BufWriter::new(file);
@@ -27,7 +27,7 @@ pub trait Export: Serialize + DeserializeOwned {
             writer.write_all(b"\n")?;
             Ok(())
         };
-        writer().map_err(|e| AizelError::FileError {
+        writer().map_err(|e| Error::FileError {
             path: path.into(),
             message: e.to_string(),
         })
