@@ -11,7 +11,7 @@ impl Attestation {
         let tee_type = get_current_tee_type()?;
         let provider = match tee_type {
             TEEProviderType::GCP => Ok(Box::new(GCP {})),
-            TEEProviderType::Unkown => Err(Error::AttestationReportError {
+            TEEProviderType::Unkown => Err(Error::UnkownTEEProviderERROR {
                 message: format!("Unkown TEE provider"),
             }),
         }?;
