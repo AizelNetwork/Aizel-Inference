@@ -13,7 +13,7 @@ impl TEEProvider for GCP {
             "{}{}",
             CONTAINER_RUNTIME_MOUNT_PATH, ATTESTATION_VERIFIER_TOKEN_FILENAME
         ))
-        .map_err(|e| Error::AttestationReportError {
+        .map_err(|e| Error::JWTTokenNotFoundError {
             message: e.to_string(),
         })?;
 
