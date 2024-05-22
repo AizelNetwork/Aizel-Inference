@@ -163,4 +163,29 @@ mod tests {
         let plain = elgamal.decrypt(&ct2, &sk).unwrap();
         assert_eq!(plaintext, String::from_utf8(plain).unwrap());
     }
+
+    #[test]
+    fn test_js_elgamal() {
+        let rng = rand::thread_rng();
+        let mut elgamal = Elgamal::new(rng);
+        let sk = SecretKey::from_slice(&hex::decode("0460ab809659c5cb613b38aeb244db1a857ed179b664f2349931c910c052d78f").unwrap()).unwrap();
+        let pk = sk.public_key(&Secp256k1::new());
+        println!("{}", hex::encode(pk.serialize()));
+        let ct_bytes = hex::decode("03ea5916c2ef1ad707c01a55f5525a2873b975cfbe03f08a00d009cb5fd0857a9d517b17716ce52a36aacf924f90de3ccafc5bcc5ed3849dd92a3bc3ae14c09707f56ef544c4f5af").unwrap();
+        let ct = Ciphertext::from_bytes(ct_bytes.as_slice());
+
+        let plain = elgamal.decrypt(&ct, &sk).unwrap();
+        println!("Message: {:?}", String::from_utf8(plain.clone()));
+
+        let cipher = elgamal.encrypt(&plain, &pk).unwrap();
+        println!("Ciphertext: {:?}", hex::encode(cipher.to_bytes()));
+    }
+
+    #[test]
+    fn test_metamask_sk() {
+        
+        let sk = SecretKey::from_slice(&hex::decode("647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae").unwrap()).unwrap();
+        let pk = sk.public_key(&Secp256k1::new());
+        println!("{}", hex::encode(pk.serialize()));
+    }
 }
