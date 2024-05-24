@@ -15,6 +15,7 @@ enum Election {
 message NodeElectionRequest {
     string ip = 1;
     string pub_key = 2;
+    string token = 3;
 }
 
 message NodeElectionResponse {

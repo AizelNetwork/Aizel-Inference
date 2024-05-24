@@ -1,6 +1,6 @@
 use super::config::{NodeConfig, NODE_KEY_FILENAME};
 use crate::crypto::secret::{Export, Secret};
-use crate::utils::error::AizelError as Error;
+use common::error::Error;
 use log::info;
 use std::path::{Path, PathBuf};
 pub struct Node {
@@ -12,9 +12,10 @@ impl Node {
     pub async fn new(config: NodeConfig) -> Result<Node, Error> {
         let secret_path = config.root_path.join(NODE_KEY_FILENAME);
         let secret = open_or_create_secret(secret_path)?;
-
         Ok(Node { config, secret })
     }
+
+    // pub async fn
 }
 
 pub fn open_or_create_secret(path: PathBuf) -> Result<Secret, Error> {

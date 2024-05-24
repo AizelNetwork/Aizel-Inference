@@ -1,6 +1,6 @@
-use super::claim::*;
-use super::error::Error;
-use super::verifier::TEEVerifier;
+use super::gcp_claim::*;
+use common::error::{Error, VerificationError};
+use common::tee::{verifier::TEEVerifier, TEEType};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Header, Validation};
 use log::error;
 use reqwest::Client;
@@ -92,7 +92,10 @@ impl GcpVerifier {
                 return Ok(k.clone());
             }
         }
-        return Err(Error::KidNotFoundError { kid: kid });
+        return Err(Error::VerificationError {
+            teetype: TEEType::GCP,
+            error: VerificationError::KidNotFoundError { kid: kid },
+        });
     }
 }
 
@@ -100,8 +103,11 @@ impl TEEVerifier for GcpVerifier {
     async fn verify(&self, report: String, skip_verify_image_digest: bool) -> Result<bool, Error> {
         let header: Header = decode_header(&report).unwrap();
         if header.alg != Algorithm::RS256 {
-            return Err(Error::SigAlgMismatchError {
-                algorithm: format!("{:?}", header.alg),
+            return Err(Error::VerificationError {
+                teetype: TEEType::GCP,
+                error: VerificationError::SigAlgMismatchError {
+                    algorithm: format!("expected RS256 but get {:?}", header.alg),
+                },
             });
         }
         let kid = header.kid.unwrap().clone();
@@ -118,26 +124,47 @@ impl TEEVerifier for GcpVerifier {
             &DecodingKey::from_rsa_components(&key_set.n, &key_set.e).unwrap(),
             &validation,
         )
-        .map_err(|e| Error::ValidateTokenError { msg: e.to_string() })?;
+        .map_err(|e| Error::VerificationError {
+            teetype: TEEType::GCP,
+            error: VerificationError::ValidateTokenError {
+                message: e.to_string(),
+            },
+        })?;
 
         if claims.claims.submods.container.image_reference != self.image_reference {
-            return Err(Error::GoldenValueMismatchError {
-                value: "image_reference".to_string(),
-                expect: self.image_reference.clone(),
-                get: claims.claims.submods.container.image_reference.clone(),
+            return Err(Error::VerificationError {
+                teetype: TEEType::GCP,
+                error: VerificationError::GoldenValueMismatchError {
+                    value: "image_reference".to_string(),
+                    expect: self.image_reference.clone(),
+                    get: claims.claims.submods.container.image_reference.clone(),
+                },
             });
         }
 
         if !skip_verify_image_digest {
             if claims.claims.submods.container.image_digest != self.image_digest {
-                return Err(Error::GoldenValueMismatchError {
-                    value: "image_digest".to_string(),
-                    expect: self.image_digest.clone(),
-                    get: claims.claims.submods.container.image_digest.clone(),
+                return Err(Error::VerificationError {
+                    teetype: TEEType::GCP,
+                    error: VerificationError::GoldenValueMismatchError {
+                        value: "image_digest".to_string(),
+                        expect: self.image_digest.clone(),
+                        get: claims.claims.submods.container.image_digest.clone(),
+                    },
                 });
+
+                // return Err(Error::GoldenValueMismatchError {
+                //     value: "image_digest".to_string(),
+                //     expect: self.image_digest.clone(),
+                //     get: claims.claims.submods.container.image_digest.clone(),
+                // });
             }
         }
 
         return Ok(true);
+    }
+
+    fn get_type(&self) -> Result<TEEType, Error> {
+        Ok(TEEType::GCP)
     }
 }

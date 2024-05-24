@@ -1,9 +1,10 @@
-use aizel_inference::utils::error::AizelError;
 use chrono::Local;
+use common::error::{Error, VerificationError};
+use common::tee::TEEType;
 use env_logger::Env;
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Header, Validation};
 use log::{error, info};
-use reqwest::{Client, Error};
+use reqwest::{Client, Error as reqError};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -56,28 +57,28 @@ struct OpenIDConfResponse {
     pub jwks_uri: String,
 }
 
-fn read_raw_token() -> Result<String, AizelError> {
-    let token = fs::read_to_string(TOKEN_FILENAME).map_err(|e| AizelError::FileError {
+fn read_raw_token() -> Result<String, Error> {
+    let token = fs::read_to_string(TOKEN_FILENAME).map_err(|e| Error::FileError {
         path: TOKEN_FILENAME.into(),
         message: e.to_string(),
     })?;
     return Ok(token);
 }
 
-async fn get_openid_configuration() -> Result<String, AizelError> {
+async fn get_openid_configuration() -> Result<String, Error> {
     let url = format!("{}{}", EXPECTED_ISSUER, WELL_KNOWN_URL_PATH);
     let url = Url::parse(&url).unwrap();
     let client = Client::builder().build().unwrap();
     match client.get(url.clone()).send().await {
         Ok(res) => {
-            let configuration: Result<OpenIDConfResponse, Error> =
+            let configuration: Result<OpenIDConfResponse, reqError> =
                 res.json::<OpenIDConfResponse>().await;
             match configuration {
                 Ok(conf) => {
                     return Ok(conf.jwks_uri);
                 }
                 Err(e) => {
-                    return Err(AizelError::SerDeError {
+                    return Err(Error::SerDeError {
                         message: e.to_string(),
                     })
                 }
@@ -85,7 +86,7 @@ async fn get_openid_configuration() -> Result<String, AizelError> {
         }
         Err(e) => {
             error!("failed to send request: url {}, reason {}", url, e);
-            return Err(AizelError::NetworkError {
+            return Err(Error::NetworkError {
                 url: url,
                 message: e.to_string(),
             });
@@ -93,7 +94,7 @@ async fn get_openid_configuration() -> Result<String, AizelError> {
     }
 }
 
-async fn get_json_web_key_sets(url: String) -> Result<KeySets, AizelError> {
+async fn get_json_web_key_sets(url: String) -> Result<KeySets, Error> {
     let url = Url::parse(&url).unwrap();
     let client = Client::builder().build().unwrap();
     match client.get(url.clone()).send().await {
@@ -104,7 +105,7 @@ async fn get_json_web_key_sets(url: String) -> Result<KeySets, AizelError> {
                     return Ok(keys);
                 }
                 Err(e) => {
-                    return Err(AizelError::SerDeError {
+                    return Err(Error::SerDeError {
                         message: e.to_string(),
                     })
                 }
@@ -112,7 +113,7 @@ async fn get_json_web_key_sets(url: String) -> Result<KeySets, AizelError> {
         }
         Err(e) => {
             error!("failed to send request: url {}, reason {}", url, e);
-            return Err(AizelError::NetworkError {
+            return Err(Error::NetworkError {
                 url: url,
                 message: e.to_string(),
             });
@@ -120,13 +121,16 @@ async fn get_json_web_key_sets(url: String) -> Result<KeySets, AizelError> {
     }
 }
 
-fn find_jwt_key_set(s: &KeySets, kid: String) -> Result<JsonWebKeySet, AizelError> {
+fn find_jwt_key_set(s: &KeySets, kid: String) -> Result<JsonWebKeySet, Error> {
     for k in &s.keys {
         if k.kid == kid {
             return Ok(k.clone());
         }
     }
-    return Err(AizelError::KidNotFoundError { kid: kid });
+    return Err(Error::VerificationError {
+        teetype: TEEType::GCP,
+        error: VerificationError::KidNotFoundError { kid: kid },
+    });
 }
 
 fn init_log() {
