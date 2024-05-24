@@ -1,5 +1,5 @@
-use super::provider::{TEEProvider, TEEProviderType};
-use crate::utils::error::AizelError as Error;
+use common::error::{AttestationError, Error};
+use common::tee::{provider::TEEProvider, TEEType};
 use std::fs;
 const CONTAINER_RUNTIME_MOUNT_PATH: &'static str = "/run/container_launcher/";
 const ATTESTATION_VERIFIER_TOKEN_FILENAME: &'static str = "attestation_verifier_claims_token";
@@ -13,14 +13,17 @@ impl TEEProvider for GCP {
             "{}{}",
             CONTAINER_RUNTIME_MOUNT_PATH, ATTESTATION_VERIFIER_TOKEN_FILENAME
         ))
-        .map_err(|e| Error::JWTTokenNotFoundError {
-            message: e.to_string(),
+        .map_err(|e| Error::AttestationError {
+            teetype: TEEType::GCP,
+            error: AttestationError::ReportError {
+                message: e.to_string(),
+            },
         })?;
 
         Ok(gcp_report)
     }
 
-    fn get_type(&self) -> Result<super::provider::TEEProviderType, Error> {
-        Ok(TEEProviderType::GCP)
+    fn get_type(&self) -> Result<TEEType, Error> {
+        Ok(TEEType::GCP)
     }
 }

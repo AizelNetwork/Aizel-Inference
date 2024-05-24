@@ -1,5 +1,6 @@
 use aizel::inference_server::{Inference, InferenceServer};
 use aizel::{DemoAttestationResponse, Empty, InferenceRequest, InferenceResponse};
+use aizel_inference::tee::attestation::AttestationAgent;
 use chrono::Local;
 use env_logger::Env;
 use log::{error, info};
@@ -8,8 +9,6 @@ use serde_derive::{Deserialize, Serialize};
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tonic::{transport::Server, Request, Response, Status};
-
-use aizel_inference::tee::{attestation::Attestation, provider::TEEProvider};
 use url::Url;
 pub mod aizel {
     tonic::include_proto!("aizel"); // The string specified here must match the proto package name
@@ -79,13 +78,13 @@ impl Inference for AizelInference {
 
     async fn demo_attestation_report(
         &self,
-        request: Request<Empty>,
+        _request: Request<Empty>,
     ) -> Result<Response<DemoAttestationResponse>, Status> {
         let mut reply = DemoAttestationResponse {
             jwt_token: String::new(),
             code: 0,
         };
-        let attestation = Attestation::new();
+        let attestation = AttestationAgent::new();
         match attestation {
             Ok(attestation) => {
                 let report = attestation.get_attestation_report().unwrap();
@@ -104,7 +103,7 @@ impl Inference for AizelInference {
 fn print_token() {
     tokio::spawn(async {
         loop {
-            let attestation = Attestation::new().unwrap();
+            let attestation = AttestationAgent::new().unwrap();
             info!("token: {}", attestation.get_attestation_report().unwrap());
             std::thread::sleep(std::time::Duration::from_secs(600));
         }

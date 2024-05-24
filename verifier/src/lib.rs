@@ -1,13 +1,10 @@
-pub mod claim;
-pub mod error;
+pub mod gcp_claim;
 pub mod gcp_verifier;
-pub mod verifier;
 
 #[cfg(test)]
 mod tests {
-    use self::verifier::TEEVerifier;
-
     use super::*;
+    use common::tee::verifier::TEEVerifier;
     use gcp_verifier::GcpVerifier;
     #[tokio::test]
     async fn verify_gcp_token() {

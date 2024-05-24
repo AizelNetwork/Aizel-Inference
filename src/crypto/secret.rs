@@ -1,5 +1,5 @@
 use super::key::{generate_secp256k_keypair, PublicKey, SecretKey};
-use crate::utils::error::AizelError as Error;
+use common::error::Error;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};

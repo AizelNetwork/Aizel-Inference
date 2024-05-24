@@ -1,21 +1,47 @@
+use crate::tee::TEEType;
+use std::path::PathBuf;
 use thiserror::Error;
 use url::Url;
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("FileError '{path}': {message}")]
+    FileError { path: PathBuf, message: String },
     #[error("NetworkError '{url}': {message}")]
     NetworkError { url: Url, message: String },
     #[error("SerDeError: {message}")]
     SerDeError { message: String },
+    #[error("VerificationError: type {teetype}, reason {error}")]
+    VerificationError {
+        teetype: TEEType,
+        error: VerificationError,
+    },
+    #[error("UnkownTEETypeERROR: {message}")]
+    UnkownTEETypeERROR { message: String },
+    #[error("AttestationError: type {teetype}, reason {error}")]
+    AttestationError {
+        teetype: TEEType,
+        error: AttestationError,
+    },
+}
+
+#[derive(Error, Debug)]
+pub enum VerificationError {
     #[error("KidNotFoundError {kid}")]
     KidNotFoundError { kid: String },
     #[error("SigAlgMismatchError {algorithm}")]
     SigAlgMismatchError { algorithm: String },
-    #[error("ValidateTokenError {msg}")]
-    ValidateTokenError { msg: String },
+    #[error("ValidateTokenError {message}")]
+    ValidateTokenError { message: String },
     #[error("GoldenValueMismatchError {value} expect: {expect} get: {get}")]
     GoldenValueMismatchError {
         value: String,
         expect: String,
         get: String,
     },
+}
+
+#[derive(Error, Debug)]
+pub enum AttestationError {
+    #[error("ReportError: {message}")]
+    ReportError { message: String },
 }
