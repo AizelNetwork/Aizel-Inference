@@ -15,3 +15,9 @@ impl fmt::Display for TEEType {
         }
     }
 }
+
+impl From<TEEType> for i32 {
+    fn from(t: TEEType) -> Self {
+        t as i32
+    }
+}

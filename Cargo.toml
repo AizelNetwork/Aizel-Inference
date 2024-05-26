@@ -8,8 +8,8 @@ version = "0.1.0"
 
 
 [[bin]]
-name = "inference-server"
-path = "src/server.rs"
+name = "inference-node"
+path = "src/main.rs"
 
 [[bin]]
 name = "inference-client"
@@ -40,7 +40,7 @@ sha256 = "1.5.0"
 thiserror = "1.0"
 jsonwebtoken = "9"
 aes-gcm = "0.10"
-
+dirs = "5.0"
 common = { path = "./common"}
 
 [build-dependencies]

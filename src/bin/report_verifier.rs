@@ -66,8 +66,8 @@ fn read_raw_token() -> Result<String, Error> {
 }
 
 async fn get_openid_configuration() -> Result<String, Error> {
-    let url = format!("{}{}", EXPECTED_ISSUER, WELL_KNOWN_URL_PATH);
-    let url = Url::parse(&url).unwrap();
+    let url_str = format!("{}{}", EXPECTED_ISSUER, WELL_KNOWN_URL_PATH);
+    let url = Url::parse(&url_str).unwrap();
     let client = Client::builder().build().unwrap();
     match client.get(url.clone()).send().await {
         Ok(res) => {
@@ -87,15 +87,15 @@ async fn get_openid_configuration() -> Result<String, Error> {
         Err(e) => {
             error!("failed to send request: url {}, reason {}", url, e);
             return Err(Error::NetworkError {
-                url: url,
+                address: url_str,
                 message: e.to_string(),
             });
         }
     }
 }
 
-async fn get_json_web_key_sets(url: String) -> Result<KeySets, Error> {
-    let url = Url::parse(&url).unwrap();
+async fn get_json_web_key_sets(url_str: String) -> Result<KeySets, Error> {
+    let url = Url::parse(&url_str).unwrap();
     let client = Client::builder().build().unwrap();
     match client.get(url.clone()).send().await {
         Ok(res) => {
@@ -114,7 +114,7 @@ async fn get_json_web_key_sets(url: String) -> Result<KeySets, Error> {
         Err(e) => {
             error!("failed to send request: url {}, reason {}", url, e);
             return Err(Error::NetworkError {
-                url: url,
+                address: url_str,
                 message: e.to_string(),
             });
         }

@@ -1,13 +1,12 @@
 use crate::tee::TEEType;
 use std::path::PathBuf;
 use thiserror::Error;
-use url::Url;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("FileError '{path}': {message}")]
     FileError { path: PathBuf, message: String },
-    #[error("NetworkError '{url}': {message}")]
-    NetworkError { url: Url, message: String },
+    #[error("NetworkError '{address}': {message}")]
+    NetworkError { address: String, message: String },
     #[error("SerDeError: {message}")]
     SerDeError { message: String },
     #[error("VerificationError: type {teetype}, reason {error}")]
@@ -22,6 +21,10 @@ pub enum Error {
         teetype: TEEType,
         error: AttestationError,
     },
+    #[error("RegistrationError: {message}")]
+    RegistrationError { message: String },
+    #[error("RegistrationError: {message}")]
+    ServerError { message: String },
 }
 
 #[derive(Error, Debug)]

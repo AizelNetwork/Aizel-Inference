@@ -1,29 +1,32 @@
-use aizel::inference_client::InferenceClient;
-use aizel::InferenceRequest;
-pub mod aizel {
-    tonic::include_proto!("aizel"); // The string specified here must match the proto package name
-}
+use aizel_inference::node::config::DEFAULT_ROOT_DIR;
+use aizel_inference::node::{config::NodeConfig, node::Node};
 use chrono::Local;
 use clap::Parser;
 use env_logger::Env;
-use std::io::Write;
+use std::path::PathBuf;
+use std::{
+    io::Write,
+    net::{IpAddr, SocketAddr},
+};
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Name of the person to greet
-    #[arg(short, long)]
-    prompt: String,
-
+    /// Ip of the node
     #[arg(short, long)]
     ip: String,
-
-    #[arg(long)]
+    /// Port of the node
+    /// #[arg(short, long)]
     port: u16,
+    /// socket address of the gate node
+    /// #[arg(short, long)]
+    gate_server: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+
     let _logger = env_logger::Builder::from_env(Env::default().default_filter_or("info"))
         .format(|buf, record| {
             let level = { buf.default_level_style(record.level()) };
@@ -38,14 +41,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
         })
         .init();
-    let args = Args::parse();
-    let url = format!("http://{}:{}", args.ip, args.port);
-    let mut client = InferenceClient::connect(url).await?;
-    let request = tonic::Request::new(InferenceRequest {
-        input: args.prompt,
-        model: String::new(),
-    });
-    let response = client.llama_inference(request).await?;
-    let _ = response.into_inner();
+    let base_dir = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(DEFAULT_ROOT_DIR);
+    let config = NodeConfig {
+        socket_address: SocketAddr::new(IpAddr::V4(args.ip.parse().unwrap()), args.port),
+        root_path: base_dir,
+        gate_address: args.gate_server.parse().unwrap(),
+    };
+    let node = Node::new(config).await?;
+    node.run_server().await?;
     Ok(())
 }
