@@ -21,6 +21,9 @@ struct Args {
     /// socket address of the gate node
     /// #[arg(short, long)]
     gate_server: String,
+    /// socket address of the gate node
+    /// #[arg(short, long)]
+    data_server: String,
 }
 
 #[tokio::main]
@@ -48,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         socket_address: SocketAddr::new(IpAddr::V4(args.ip.parse().unwrap()), args.port),
         root_path: base_dir,
         gate_address: args.gate_server.parse().unwrap(),
+        data_address: args.data_server.parse().unwrap(),
     };
     let node = Node::new(config).await?;
     node.run_server().await?;

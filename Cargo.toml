@@ -42,6 +42,10 @@ jsonwebtoken = "9"
 aes-gcm = "0.10"
 dirs = "5.0"
 common = { path = "./common"}
+minio = "0.1.0"
+llama-cpp-2 = "0.1.53"
+num_cpus = "1.16"
+encoding_rs = "0.8.34"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }
