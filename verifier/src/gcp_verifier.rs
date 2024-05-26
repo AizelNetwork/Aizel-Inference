@@ -32,8 +32,8 @@ impl GcpVerifier {
     }
 
     async fn get_openid_configuration(&self) -> Result<OpenIDConfiguration, Error> {
-        let url = format!("{}{}", EXPECTED_ISSUER, GCP_WELL_KNOWN_URL_PATH);
-        let url = Url::parse(&url).unwrap();
+        let url_str = format!("{}{}", EXPECTED_ISSUER, GCP_WELL_KNOWN_URL_PATH);
+        let url = Url::parse(&url_str).unwrap();
         let client = Client::builder().build().unwrap();
         match client.get(url.clone()).send().await {
             Ok(res) => {
@@ -52,15 +52,15 @@ impl GcpVerifier {
             Err(e) => {
                 error!("failed to send request: url {}, reason {}", url, e);
                 return Err(Error::NetworkError {
-                    url: url,
+                    address: url_str,
                     message: e.to_string(),
                 });
             }
         }
     }
 
-    async fn get_json_web_key_sets(&self, url: String) -> Result<KeySets, Error> {
-        let url = Url::parse(&url).unwrap();
+    async fn get_json_web_key_sets(&self, url_str: String) -> Result<KeySets, Error> {
+        let url = Url::parse(&url_str).unwrap();
         let client = Client::builder().build().unwrap();
         match client.get(url.clone()).send().await {
             Ok(res) => {
@@ -79,7 +79,7 @@ impl GcpVerifier {
             Err(e) => {
                 error!("failed to send request: url {}, reason {}", url, e);
                 return Err(Error::NetworkError {
-                    url: url,
+                    address: url_str,
                     message: e.to_string(),
                 });
             }

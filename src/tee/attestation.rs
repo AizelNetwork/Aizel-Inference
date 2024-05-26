@@ -21,6 +21,10 @@ impl AttestationAgent {
     pub fn get_attestation_report(&self) -> Result<String, Error> {
         self.provider.get_report()
     }
+
+    pub fn get_tee_type(&self) -> Result<i32, Error> {
+        Ok(self.provider.get_type()?.into())
+    }
 }
 
 pub fn get_current_tee_type() -> Result<TEEType, Error> {

@@ -1,30 +1,21 @@
 syntax = "proto3";
 
 package aizel;
+import "status_code.proto";
 
 // InferenceRequest is the request for inference.
 message InferenceRequest {
-    string input = 1;
+    string model = 1;
+    string input = 2;
 }
 
 // InferenceResponse is the response for inference.
 message InferenceResponse {
-    string input = 1;
-    string output = 2;
-    int32 code = 3;
-}
-
-message Empty {
-
-}
-
-message DemoAttestationResponse {
-    int32 code = 1;
-    string jwt_token = 2;
+    int32  code = 1;
+    string msg  = 2;
 }
 
 // Inference is the inference service.
 service Inference {
     rpc LlamaInference(InferenceRequest) returns (InferenceResponse) {}
-    rpc DemoAttestationReport(Empty) returns (DemoAttestationResponse) {}
 }

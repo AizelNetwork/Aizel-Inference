@@ -10,9 +10,9 @@ use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tonic::{transport::Server, Request, Response, Status};
 use url::Url;
-pub mod aizel {
-    tonic::include_proto!("aizel"); // The string specified here must match the proto package name
-}
+// pub mod aizel {
+//     tonic::include_proto!("aizel"); // The string specified here must match the proto package name
+// }
 
 #[derive(Debug)]
 pub struct AizelInference {

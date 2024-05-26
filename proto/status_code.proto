@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package aizel;
+
+enum StatusCode {
+    SUCCESS = 0;
+    Failed = 1;
+    UNSPECIFIED = 2;
+}
