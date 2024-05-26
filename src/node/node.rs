@@ -1,5 +1,5 @@
 use super::aizel::gate_service_client::GateServiceClient;
-use super::aizel::{inference_server::InferenceServer, NodeRegistrationRequest, StatusCode};
+use super::aizel::{inference_server::InferenceServer, NodeRegistrationRequest};
 use super::{
     config::{NodeConfig, NODE_KEY_FILENAME},
     server::AizelInference,
@@ -10,6 +10,7 @@ use crate::{
 };
 use common::error::Error;
 use log::{error, info};
+use std::fs;
 use std::path::PathBuf;
 use tonic::transport::Server;
 pub struct Node {
@@ -20,10 +21,15 @@ pub struct Node {
 
 impl Node {
     pub async fn new(config: NodeConfig) -> Result<Node, Error> {
-        let secret_path = config.root_path.join(NODE_KEY_FILENAME);
+        fs::create_dir_all(&config.root_path).map_err(|e| Error::FileError {
+            path: config.root_path.clone(),
+            message: e.to_string(),
+        })?;
+        let secret_path = config.root_path.clone().join(NODE_KEY_FILENAME);
         let secret = open_or_create_secret(secret_path)?;
+
         Ok(Node {
-            config: config.clone(),
+            config: config,
             secret,
             agent: AttestationAgent::new()?,
         })
@@ -46,18 +52,16 @@ impl Node {
             tee_type: self.agent.get_tee_type()?,
             report: report,
         });
-        let res = client
+        let _ = client
             .node_registration(request)
             .await
-            .map_err(|e| Error::NetworkError {
-                address: gate_address,
-                message: e.to_string(),
+            .map_err(|e| {
+                error!("failed to register node: {}", e.message().to_string());
+                Error::RegistrationError {
+                    message: e.message().to_string(),
+                }
             })?
             .into_inner();
-        if res.code != StatusCode::Success as i32 {
-            error!("failed to register, reason {}", res.msg);
-            return Err(Error::RegistrationError { message: res.msg });
-        }
         Ok(())
     }
 
@@ -80,7 +84,7 @@ impl Node {
 
 pub fn open_or_create_secret(path: PathBuf) -> Result<Secret, Error> {
     if path.exists() {
-        info!("{:?}", path);
+        info!("secret already exist {:?}", path);
         Secret::read(path.to_str().unwrap())
     } else {
         let secret = Secret::new();

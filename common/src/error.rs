@@ -25,6 +25,8 @@ pub enum Error {
     RegistrationError { message: String },
     #[error("RegistrationError: {message}")]
     ServerError { message: String },
+    #[error("InferenceError: {message}")]
+    InferenceError { message: String },
 }
 
 #[derive(Error, Debug)]
