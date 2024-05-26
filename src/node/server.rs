@@ -18,6 +18,11 @@ use std::fs;
 use std::num::NonZeroU32;
 use std::time::Duration;
 use tonic::{Request, Response, Status};
+use minio::s3::http::BaseUrl;
+use minio::s3::args::{BucketExistsArgs, MakeBucketArgs};
+use minio::s3::builders::ObjectContent;
+use minio::s3::client::ClientBuilder;
+use minio::s3::creds::StaticProvider;
 
 #[derive(Debug)]
 pub struct AizelInference {
@@ -73,6 +78,20 @@ impl AizelInference {
     }
 
     async fn download_model(&self, model: String) -> Result<(), Error> {
+        let base_url = format!("https://{}", self.config.data_address).parse::<BaseUrl>().map_err(|e| {
+            Error::DownloadingModelError { model: model.clone(), message: e.to_string() }
+        })?;
+        info!("Trying to connect to MinIO at: `{:?}`", base_url);
+        let static_provider = StaticProvider::new(
+            "Q3AM3UQ867SPQQA43P2F",
+            "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG",
+            None,
+        );
+        let client = ClientBuilder::new(base_url.clone())
+        .provider(Some(Box::new(static_provider)))
+        .build().map_err(|e| {
+            Error::DownloadingModelError { model: model.clone(), message: e.to_string() }
+        })?;
         Ok(())
     }
 

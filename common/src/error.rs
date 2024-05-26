@@ -27,6 +27,8 @@ pub enum Error {
     ServerError { message: String },
     #[error("InferenceError: {message}")]
     InferenceError { message: String },
+    #[error("DownloadingModelError: {message}")]
+    DownloadingModelError { model: String, message: String },
 }
 
 #[derive(Error, Debug)]
