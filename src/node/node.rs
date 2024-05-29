@@ -47,8 +47,8 @@ impl Node {
                 })?;
         let report: String = self.agent.get_attestation_report()?;
         let request = tonic::Request::new(NodeRegistrationRequest {
-            ip: self.config.socket_address.ip().to_string(),
-            pub_key: self.secret.name.to_string(),
+            ip: self.config.socket_address.to_string(),
+            pub_key: hex::encode(self.secret.name.0),
             tee_type: self.agent.get_tee_type()?,
             report: report,
         });
@@ -56,7 +56,7 @@ impl Node {
             .node_registration(request)
             .await
             .map_err(|e| {
-                error!("failed to register node: {}", e.message().to_string());
+                error!("failed to register node: {:#?}", e.message().to_string());
                 Error::RegistrationError {
                     message: e.message().to_string(),
                 }
@@ -66,12 +66,13 @@ impl Node {
     }
 
     pub async fn run_server(&self) -> Result<(), Error> {
-        self.register().await?;
+        // self.register().await?;
         let mut listen_addr = self.config.socket_address.clone();
         listen_addr.set_ip("0.0.0.0".parse().unwrap());
         Server::builder()
             .add_service(InferenceServer::new(AizelInference {
                 config: self.config.clone(),
+                secret: self.secret.clone(),
             }))
             .serve(listen_addr)
             .await

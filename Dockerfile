@@ -10,11 +10,10 @@ COPY ./Cargo.toml ./Cargo.toml
 COPY ./proto ./proto
 COPY ./src ./src
 COPY ./build.rs ./build.rs
+COPY ./common ./common
+COPY ./verifier ./verifier
 
 RUN cargo build --release
-
-COPY ./llama.cpp ./llama.cpp
-RUN cd llama.cpp && make server
 
 FROM ubuntu:22.04
 RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
@@ -26,9 +25,7 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
 
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
-COPY --from=builder /app/target/release/inference-server /usr/local/bin/inference-server
-COPY --from=builder /app/llama.cpp/server /usr/local/bin/llama-server
-COPY ./models /app/models
+COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
 COPY ./script/bootstrap.sh bootstrap.sh
 
 ENTRYPOINT /bin/bash bootstrap.sh
