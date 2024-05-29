@@ -38,12 +38,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
         })
         .init();
-    let args = Args::parse();
-    let url = format!("http://{}:{}", args.ip, args.port);
+    // let args = Args::parse();
+    let url = format!("http://{}:{}", "35.247.43.255", 8080);
     let mut client = InferenceClient::connect(url).await?;
     let request = tonic::Request::new(InferenceRequest {
-        input: args.prompt,
+        input: "hello ".to_string(),
         model: String::new(),
+        user_pk: String::new(),
     });
     let response = client.llama_inference(request).await?;
     let _ = response.into_inner();

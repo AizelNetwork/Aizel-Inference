@@ -16,4 +16,5 @@ pub struct NodeConfig {
     pub root_path: PathBuf,
     pub gate_address: SocketAddr,
     pub data_address: SocketAddr,
+    pub contract_address: String,
 }

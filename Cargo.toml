@@ -46,6 +46,8 @@ minio = "0.1.0"
 llama-cpp-2 = "0.1.53"
 num_cpus = "1.16"
 encoding_rs = "0.8.34"
+ethers = { version = "2.0.14", features = ["ws"] }
+lazy_static = "1.4.0"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }

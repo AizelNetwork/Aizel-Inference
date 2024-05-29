@@ -16,14 +16,17 @@ struct Args {
     #[arg(short, long)]
     ip: String,
     /// Port of the node
-    /// #[arg(short, long)]
+    #[arg(short, long)]
     port: u16,
     /// socket address of the gate node
-    /// #[arg(short, long)]
+    #[arg(short, long)]
     gate_server: String,
     /// socket address of the gate node
-    /// #[arg(short, long)]
+    #[arg(short, long)]
     data_server: String,
+    /// contract address
+    #[arg(short, long)]
+    contract_address: String,
 }
 
 #[tokio::main]
@@ -52,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         root_path: base_dir,
         gate_address: args.gate_server.parse().unwrap(),
         data_address: args.data_server.parse().unwrap(),
+        contract_address: args.contract_address.parse().unwrap(),
     };
     let node = Node::new(config).await?;
     node.run_server().await?;
