@@ -4,9 +4,10 @@ package aizel;
 
 // InferenceRequest is the request for inference.
 message InferenceRequest {
-    string model = 1;
-    string input = 2;   
-    string user_pk = 3;
+    uint64 request_id = 1;
+    string model = 2;
+    string input = 3;
+    string user_pk = 4;
 }
 
 // InferenceResponse is the response for inference.

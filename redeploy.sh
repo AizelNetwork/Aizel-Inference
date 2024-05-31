@@ -1,24 +1,12 @@
-# AizelInference
+#/bin/bash
 
-## Install Dependencies
-Ubuntu:
-```
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y protobuf-compiler libprotobuf-dev
-```
-MacOs
-```
-brew install protobuf
-```
 
-## Build 
-```
-cargo build
-```
+sudo docker build --tag asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0 .
+gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
 
-## Deploy to Google Confidential Space
-```
-gcloud compute instances create inference-demo2 \
+docker push asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0
+gcloud compute instances delete inference-demo --zone us-west1-b --quiet || true
+gcloud compute instances create inference-demo \
     --confidential-compute \
     --shielded-secure-boot \
     --scopes=cloud-platform \
@@ -32,4 +20,3 @@ gcloud compute instances create inference-demo2 \
     --boot-disk-size=50 \
     --tags=will-dev \
     --metadata-from-file=startup-script=./script/startup-script.sh
-```

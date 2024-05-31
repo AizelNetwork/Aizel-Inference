@@ -1,7 +1,7 @@
 use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::{inference_server::InferenceServer, NodeRegistrationRequest};
 use super::{
-    config::{NodeConfig, NODE_KEY_FILENAME},
+    config::{NodeConfig, NODE_KEY_FILENAME, DEFAULT_MODEL_DIR},
     server::AizelInference,
 };
 use crate::{
@@ -22,6 +22,10 @@ pub struct Node {
 impl Node {
     pub async fn new(config: NodeConfig) -> Result<Node, Error> {
         fs::create_dir_all(&config.root_path).map_err(|e| Error::FileError {
+            path: config.root_path.clone(),
+            message: e.to_string(),
+        })?;
+        fs::create_dir_all(&config.root_path.join(DEFAULT_MODEL_DIR)).map_err(|e| Error::FileError {
             path: config.root_path.clone(),
             message: e.to_string(),
         })?;
@@ -47,7 +51,7 @@ impl Node {
                 })?;
         let report: String = self.agent.get_attestation_report()?;
         let request = tonic::Request::new(NodeRegistrationRequest {
-            ip: self.config.socket_address.to_string(),
+            ip: format!("http://{}", self.config.socket_address.to_string()),
             pub_key: hex::encode(self.secret.name.0),
             tee_type: self.agent.get_tee_type()?,
             report: report,
@@ -62,11 +66,12 @@ impl Node {
                 }
             })?
             .into_inner();
+        info!("successfully registered");
         Ok(())
     }
 
     pub async fn run_server(&self) -> Result<(), Error> {
-        // self.register().await?;
+        self.register().await?;
         let mut listen_addr = self.config.socket_address.clone();
         listen_addr.set_ip("0.0.0.0".parse().unwrap());
         Server::builder()

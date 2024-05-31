@@ -42,6 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = format!("http://{}:{}", "35.247.43.255", 8080);
     let mut client = InferenceClient::connect(url).await?;
     let request = tonic::Request::new(InferenceRequest {
+        request_id: 0,
         input: "hello ".to_string(),
         model: String::new(),
         user_pk: String::new(),
