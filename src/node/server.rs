@@ -39,7 +39,7 @@ use tonic::{Request, Response, Status};
 abigen!(
     InferenceContract,
     r#"[
-        function requestInference(string calldata node,string calldata model,string calldata input) external onlyOwner returns (uint256 requestId)
+        function submitInference(uint256 requestId,string memory output) external onlyOwner
     ]"#,
 );
 
@@ -103,7 +103,19 @@ impl Inference for AizelInference {
         .map_err(|e| Status::internal(format!("failde to get plain input {}", e.to_string())))?;
 
         // model inference
-        self.model_inference(model, decrypted_input)
+        let output = self
+            .model_inference(model, decrypted_input)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+        let request_id = req.request_id;
+
+        if output.len() == 0 {
+            return Err(Status::internal("failed to generate output"));
+        }
+        // send model output to smart contract
+        let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), output[0].clone());
+        let _pending_tx = tx
+            .send()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(InferenceResponse {}))
