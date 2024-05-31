@@ -18,5 +18,4 @@ gcloud compute instances create inference-demo \
     --machine-type=n2d-standard-4 \
     --min-cpu-platform="AMD Milan" \
     --boot-disk-size=50 \
-    --tags=will-dev \
-    --metadata-from-file=startup-script=./script/startup-script.sh
+    --tags=will-dev
