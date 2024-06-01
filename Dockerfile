@@ -27,7 +27,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
 COPY ./script/bootstrap.sh bootstrap.sh
-
+COPY ./minio_test ./mino_lat
 LABEL "tee.launch_policy.allow_env_override"="ENDPOINT,CHAIN_ID,PRIVATE_KEY,CONTRACT_ADDRESS"
 EXPOSE 8080
 ENTRYPOINT /bin/bash bootstrap.sh

@@ -5,12 +5,12 @@ sudo docker build --tag asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_in
 gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
 
 docker push asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0
-gcloud compute instances delete inference-demo --zone us-west1-b --quiet || true
+gcloud compute instances delete inference-demo --zone asia-southeast1-b --quiet || true
 gcloud compute instances create inference-demo \
     --confidential-compute \
     --shielded-secure-boot \
     --scopes=cloud-platform \
-    --zone=us-west1-b \
+    --zone=asia-southeast1-b \
     --image-project=confidential-space-images \
     --image-family=confidential-space-debug \
     --service-account=991449629434-compute@developer.gserviceaccount.com \
