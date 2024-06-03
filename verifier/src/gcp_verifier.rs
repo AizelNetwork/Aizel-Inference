@@ -152,12 +152,6 @@ impl TEEVerifier for GcpVerifier {
                         get: claims.claims.submods.container.image_digest.clone(),
                     },
                 });
-
-                // return Err(Error::GoldenValueMismatchError {
-                //     value: "image_digest".to_string(),
-                //     expect: self.image_digest.clone(),
-                //     get: claims.claims.submods.container.image_digest.clone(),
-                // });
             }
         }
 

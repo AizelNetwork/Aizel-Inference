@@ -12,6 +12,7 @@ message InferenceRequest {
 
 // InferenceResponse is the response for inference.
 message InferenceResponse {
+    string output = 1;
 }
 
 // Inference is the inference service.

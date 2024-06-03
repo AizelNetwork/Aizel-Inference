@@ -1,7 +1,7 @@
 use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::{inference_server::InferenceServer, NodeRegistrationRequest};
 use super::{
-    config::{NodeConfig, NODE_KEY_FILENAME, DEFAULT_MODEL_DIR},
+    config::{NodeConfig, NODE_KEY_FILENAME, DEFAULT_MODEL_DIR, DEFAULT_MODEL},
     server::AizelInference,
 };
 use crate::{
@@ -74,11 +74,15 @@ impl Node {
         self.register().await?;
         let mut listen_addr = self.config.socket_address.clone();
         listen_addr.set_ip("0.0.0.0".parse().unwrap());
+        let aizel_inference_service = AizelInference {
+            config: self.config.clone(),
+            secret: self.secret.clone(),
+        };
+        if !aizel_inference_service.check_model_exist(DEFAULT_MODEL.to_string()).await? {
+            aizel_inference_service.download_model(DEFAULT_MODEL.to_string()).await?;
+        }
         Server::builder()
-            .add_service(InferenceServer::new(AizelInference {
-                config: self.config.clone(),
-                secret: self.secret.clone(),
-            }))
+            .add_service(InferenceServer::new(aizel_inference_service))
             .serve(listen_addr)
             .await
             .map_err(|e| Error::ServerError {
