@@ -30,7 +30,7 @@ use minio::s3::{
     creds::StaticProvider,
     http::BaseUrl,
 };
-use secp256k1::SecretKey;
+use secp256k1::{SecretKey, PublicKey};
 use std::fs;
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
@@ -112,18 +112,29 @@ impl Inference for AizelInference {
         if output.len() == 0 {
             return Err(Status::internal("failed to generate output"));
         }
+        // encrypt output
         // send model output to smart contract
-        let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), output[0].clone());
+        let encrypted_output = {
+            let rng = rand::thread_rng();
+            let mut elgamal = Elgamal::new(rng);
+            let ct = elgamal.encrypt(output.as_bytes(), &PublicKey::from_slice(&hex::decode(req.user_pk).unwrap()).unwrap() ).map_err(|e| {
+                Status::internal(e.to_string())
+            })?;
+            hex::encode(ct.to_bytes())
+        };
+
+        let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), encrypted_output.clone());
         let _pending_tx = tx
             .send()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
-        Ok(Response::new(InferenceResponse {}))
+        
+        Ok(Response::new(InferenceResponse {output: encrypted_output}))
     }
 }
 
 impl AizelInference {
-    async fn check_model_exist(&self, model: String) -> Result<bool, Error> {
+   pub async fn check_model_exist(&self, model: String) -> Result<bool, Error> {
         let model_path = self.config.root_path.join(DEFAULT_MODEL_DIR);
         for entry in fs::read_dir(&model_path).map_err(|e| Error::FileError {
             path: model_path.clone(),
@@ -142,7 +153,7 @@ impl AizelInference {
         Ok(false)
     }
 
-    async fn download_model(&self, model: String) -> Result<(), Error> {
+    pub async fn download_model(&self, model: String) -> Result<(), Error> {
         let base_url = format!("http://{}", self.config.data_address)
             .parse::<BaseUrl>()
             .map_err(|e| Error::DownloadingModelError {
@@ -196,7 +207,7 @@ impl AizelInference {
         &self,
         model_name: String,
         prompt: String,
-    ) -> Result<Vec<String>, Error> {
+    ) -> Result<String, Error> {
         let model_path = self
             .config
             .root_path
@@ -355,9 +366,61 @@ impl AizelInference {
             duration.as_secs_f32(),
             n_decode as f32 / duration.as_secs_f32()
         );
-
+        
         info!("{}", ctx.timings());
+        
+        Ok(res.join(" "))
+    }
+}
 
-        Ok(res)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::path::PathBuf;
+    use std::io::Write;
+    use env_logger::Env;
+    use chrono::Local;
+    #[tokio::test]
+    async fn test_model_inference() {
+        let _logger = env_logger::Builder::from_env(Env::default().default_filter_or("info"))
+        .format(|buf, record| {
+            let level = { buf.default_level_style(record.level()) };
+            writeln!(
+                buf,
+                "{} {} [{}:{}] {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                format_args!("{:>5}", level),
+                record.module_path().unwrap_or("<unnamed>"),
+                record.line().unwrap_or(0),
+                &record.args()
+            )
+        })
+        .init();
+        let base_dir = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("aizel");
+        let config = NodeConfig {
+            socket_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127,0,0,1)), 8080),
+            root_path: base_dir,
+            gate_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127,0,0,1)), 8080),
+            data_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127,0,0,1)), 8080),
+            contract_address: "".to_string(),
+        };
+        let inference = AizelInference {
+            config,
+            secret: Secret::new()
+        };
+        let res = inference.model_inference("llama2-7b-chat.Q4_0.gguf".to_string(), "What is the capital of the United States?".to_string()).await.unwrap();
+        println!("{:?}", res);
+
+    }
+
+    #[tokio::test]
+    async fn test_contract() {
+        let tx = &INFERENCE_CONTRACT.submit_inference(1.into(), "mock output".to_string());
+        let _pending_tx = tx
+            .send()
+            .await.unwrap();
     }
 }
