@@ -218,7 +218,7 @@ impl AizelInference {
         let ctx_size = NonZeroU32::new(2048).unwrap();
         let seed = 1234;
         let threads = num_cpus::get();
-        let n_len: i32 = 32;
+        let n_len: i32 = 128;
         let mut res = Vec::new();
         // init LLM
         let backend = LlamaBackend::init().map_err(|e| Error::InferenceError {

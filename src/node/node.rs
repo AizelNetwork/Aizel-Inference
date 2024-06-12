@@ -71,9 +71,6 @@ impl Node {
     }
 
     pub async fn run_server(&self) -> Result<(), Error> {
-        self.register().await?;
-        let mut listen_addr = self.config.socket_address.clone();
-        listen_addr.set_ip("0.0.0.0".parse().unwrap());
         let aizel_inference_service = AizelInference {
             config: self.config.clone(),
             secret: self.secret.clone(),
@@ -81,6 +78,9 @@ impl Node {
         if !aizel_inference_service.check_model_exist(DEFAULT_MODEL.to_string()).await? {
             aizel_inference_service.download_model(DEFAULT_MODEL.to_string()).await?;
         }
+        self.register().await?;
+        let mut listen_addr = self.config.socket_address.clone();
+        listen_addr.set_ip("0.0.0.0".parse().unwrap());
         Server::builder()
             .add_service(InferenceServer::new(aizel_inference_service))
             .serve(listen_addr)
