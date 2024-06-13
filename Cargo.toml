@@ -1,0 +1,55 @@
+[package]
+authors = ["Will Jiang <jianliiin96@gmail.com>"]
+edition = "2021"
+license = "MIT"
+name = "aizel_inference"
+publish = false
+version = "0.1.0"
+
+
+[[bin]]
+name = "inference-node"
+path = "src/main.rs"
+
+[[bin]]
+name = "inference-client"
+path = "src/client.rs"
+
+[workspace]
+members = ["common", "verifier"]
+
+[dependencies]
+# Common dependencies
+tokio = { version = "1.0", features = ["full"] }
+prost = "0.12"
+tonic = "0.11"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_derive = "1.0"
+url = "2"
+log = "0.4"
+env_logger = "0.11"
+chrono = "0.4"
+clap = { version = "4.5", features = ["derive"] }
+tower = { version = "0.4" }
+secp256k1 = { version = "0.29.0", features = ["global-context", "rand-std", "std"] }
+hex = "0.4"
+rand = "0.8"
+sha256 = "1.5.0"
+thiserror = "1.0"
+jsonwebtoken = "9"
+aes-gcm = "0.10"
+dirs = "5.0"
+common = { path = "./common"}
+minio = { git = "https://github.com/minio/minio-rs" }
+llama-cpp-2 = "0.1.53"
+num_cpus = "1.16"
+encoding_rs = "0.8.34"
+ethers = { version = "2.0.14", features = ["ws"] }
+lazy_static = "1.4.0"
+
+[build-dependencies]
+tonic-build = { version = "0.11.0", features = ["prost"] }
+
+verifier = { path = "./verifier" }

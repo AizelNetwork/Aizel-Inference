@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package aizel;
+
+service GateService {
+    rpc NodeRegistration(NodeRegistrationRequest) returns (NodeRegistrationResponse);
+}
+
+message NodeRegistrationRequest {
+    string ip = 1;
+    string pub_key = 2;
+    int32  tee_type = 3;
+    string report = 4;
+}
+
+message NodeRegistrationResponse {
+}
