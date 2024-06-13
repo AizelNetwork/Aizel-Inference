@@ -35,7 +35,7 @@ impl Node {
         Ok(Node {
             config: config,
             secret,
-            agent: AttestationAgent::new()?,
+            agent: AttestationAgent::new().await?,
         })
     }
 

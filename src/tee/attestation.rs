@@ -1,14 +1,14 @@
 use super::gcp::GCP;
 use common::error::Error;
 use common::tee::{provider::TEEProvider, TEEType};
-
+use reqwest::header::HeaderMap;
 pub struct AttestationAgent {
     provider: Box<dyn TEEProvider>,
 }
 
 impl AttestationAgent {
-    pub fn new() -> Result<AttestationAgent, Error> {
-        let tee_type = get_current_tee_type()?;
+    pub async fn new() -> Result<AttestationAgent, Error> {
+        let tee_type = get_current_tee_type().await?;
         let provider = match tee_type {
             TEEType::GCP => Ok(Box::new(GCP {})),
             TEEType::Unkown => Err(Error::UnkownTEETypeERROR {
@@ -27,7 +27,23 @@ impl AttestationAgent {
     }
 }
 
-pub fn get_current_tee_type() -> Result<TEEType, Error> {
-    // TODO: support more tee types, demo stage only supports GCP
-    return Ok(TEEType::GCP);
-}
+pub async fn get_current_tee_type() -> Result<TEEType, Error> {
+    // Try GCP
+    {
+        let mut headers = HeaderMap::new();
+        headers.insert("Metadata-Flavor", "Google".parse().unwrap());
+        let client = reqwest::Client::new();
+        let response = client
+            .get("http://metadata.google.internal/computeMetadata/v1/instance/")
+            .headers(headers)
+            .send()
+            .await.map_err(|e| {
+                Error::UnkownTEETypeERROR{ message: e.to_string()}
+            })?;    
+        if response.status().is_success() {
+            return Ok(TEEType::GCP);
+        }
+    }
+    
+    return Err(Error::UnkownTEETypeERROR { message: "unkown tee type".to_string() })
+}   
