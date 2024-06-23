@@ -37,13 +37,16 @@ pub async fn get_current_tee_type() -> Result<TEEType, Error> {
             .get("http://metadata.google.internal/computeMetadata/v1/instance/")
             .headers(headers)
             .send()
-            .await.map_err(|e| {
-                Error::UnkownTEETypeERROR{ message: e.to_string()}
-            })?;    
+            .await
+            .map_err(|e| Error::UnkownTEETypeERROR {
+                message: e.to_string(),
+            })?;
         if response.status().is_success() {
             return Ok(TEEType::GCP);
         }
     }
-    
-    return Err(Error::UnkownTEETypeERROR { message: "unkown tee type".to_string() })
-}   
+
+    return Err(Error::UnkownTEETypeERROR {
+        message: "unkown tee type".to_string(),
+    });
+}
