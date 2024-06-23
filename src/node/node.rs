@@ -1,7 +1,9 @@
 use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::{inference_server::InferenceServer, NodeRegistrationRequest};
 use super::{
-    config::{NodeConfig, NODE_KEY_FILENAME, DEFAULT_MODEL_DIR, DEFAULT_MODEL},
+    config::{
+        NodeConfig, DEFAULT_MODEL, DEFAULT_MODEL_DIR, NODE_KEY_FILENAME, WALLET_SK, WALLET_SK_FILE,
+    },
     server::AizelInference,
 };
 use crate::{
@@ -25,9 +27,11 @@ impl Node {
             path: config.root_path.clone(),
             message: e.to_string(),
         })?;
-        fs::create_dir_all(&config.root_path.join(DEFAULT_MODEL_DIR)).map_err(|e| Error::FileError {
-            path: config.root_path.clone(),
-            message: e.to_string(),
+        fs::create_dir_all(&config.root_path.join(DEFAULT_MODEL_DIR)).map_err(|e| {
+            Error::FileError {
+                path: config.root_path.clone(),
+                message: e.to_string(),
+            }
         })?;
         let secret_path = config.root_path.clone().join(NODE_KEY_FILENAME);
         let secret = open_or_create_secret(secret_path)?;
@@ -37,6 +41,20 @@ impl Node {
             secret,
             agent: AttestationAgent::new().await?,
         })
+    }
+
+    pub async fn init(&self) -> Result<(), Error> {
+        let wallet_sk = fs::read_to_string(
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(WALLET_SK_FILE),
+        )
+        .map_err(|e| Error::FileError {
+            path: WALLET_SK_FILE.into(),
+            message: e.to_string(),
+        })?;
+        WALLET_SK.set(wallet_sk).unwrap();
+        Ok(())
     }
 
     pub async fn register(&self) -> Result<(), Error> {
@@ -75,10 +93,15 @@ impl Node {
             config: self.config.clone(),
             secret: self.secret.clone(),
         };
-        if !aizel_inference_service.check_model_exist(DEFAULT_MODEL.to_string()).await? {
-            aizel_inference_service.download_model(DEFAULT_MODEL.to_string()).await?;
+        if !aizel_inference_service
+            .check_model_exist(DEFAULT_MODEL.to_string())
+            .await?
+        {
+            aizel_inference_service
+                .download_model(DEFAULT_MODEL.to_string())
+                .await?;
         }
-        self.register().await?;
+        // self.register().await?;
         let mut listen_addr = self.config.socket_address.clone();
         listen_addr.set_ip("0.0.0.0".parse().unwrap());
         Server::builder()

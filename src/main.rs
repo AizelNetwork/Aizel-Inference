@@ -58,6 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         contract_address: args.contract_address.parse().unwrap(),
     };
     let node = Node::new(config).await?;
+    node.init().await?;
     node.run_server().await?;
     Ok(())
 }

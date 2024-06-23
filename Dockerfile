@@ -15,6 +15,11 @@ COPY ./verifier ./verifier
 
 RUN cargo build --release
 
+FROM golang:1.22 as builder2
+WORKDIR /app
+COPY ./secret ./secret
+RUN cd secret && go build -o ../retrieve-secret
+
 FROM ubuntu:22.04
 RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
   libssl-dev \
@@ -26,8 +31,8 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
+COPY --from=builder2 /app/retrieve-secret /usr/local/bin/retrieve-secret
 COPY ./script/bootstrap.sh bootstrap.sh
-COPY ./minio_test ./mino_lat
 LABEL "tee.launch_policy.allow_env_override"="ENDPOINT,CHAIN_ID,PRIVATE_KEY,CONTRACT_ADDRESS"
 EXPOSE 8080
 ENTRYPOINT /bin/bash bootstrap.sh
