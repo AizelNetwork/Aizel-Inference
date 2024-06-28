@@ -18,8 +18,8 @@ impl AttestationAgent {
         Ok(AttestationAgent { provider })
     }
 
-    pub fn get_attestation_report(&self) -> Result<String, Error> {
-        self.provider.get_report()
+    pub async fn get_attestation_report(&self, nonce: String) -> Result<String, Error> {
+        self.provider.get_report(nonce).await
     }
 
     pub fn get_tee_type(&self) -> Result<i32, Error> {

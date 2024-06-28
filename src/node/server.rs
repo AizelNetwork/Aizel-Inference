@@ -53,7 +53,8 @@ lazy_static! {
         let provider = Provider::<Http>::try_from(env::var("ENDPOINT").unwrap()).unwrap();
 
         let chain_id: u64 = env::var("CHAIN_ID").unwrap().parse().unwrap();
-        let wallet = WALLET_SK.get()
+        let wallet = WALLET_SK
+            .get()
             .unwrap()
             .parse::<LocalWallet>()
             .unwrap()

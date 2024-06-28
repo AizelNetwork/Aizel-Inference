@@ -67,7 +67,10 @@ impl Node {
                     address: gate_address.clone(),
                     message: e.to_string(),
                 })?;
-        let report: String = self.agent.get_attestation_report()?;
+        let report: String = self
+            .agent
+            .get_attestation_report(hex::encode(self.secret.name.0))
+            .await?;
         let request = tonic::Request::new(NodeRegistrationRequest {
             ip: format!("http://{}", self.config.socket_address.to_string()),
             pub_key: hex::encode(self.secret.name.0),
