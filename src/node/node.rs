@@ -2,7 +2,7 @@ use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::{inference_server::InferenceServer, NodeRegistrationRequest};
 use super::{
     config::{
-        NodeConfig, DEFAULT_MODEL, DEFAULT_MODEL_DIR, NODE_KEY_FILENAME, WALLET_SK, WALLET_SK_FILE,
+        NodeConfig, DEFAULT_MODEL, DEFAULT_MODEL_DIR, NODE_KEY_FILENAME,
     },
     server::AizelInference,
 };
@@ -41,20 +41,6 @@ impl Node {
             secret,
             agent: AttestationAgent::new().await?,
         })
-    }
-
-    pub async fn init(&self) -> Result<(), Error> {
-        let wallet_sk = fs::read_to_string(
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(WALLET_SK_FILE),
-        )
-        .map_err(|e| Error::FileError {
-            path: WALLET_SK_FILE.into(),
-            message: e.to_string(),
-        })?;
-        WALLET_SK.set(wallet_sk).unwrap();
-        Ok(())
     }
 
     pub async fn register(&self) -> Result<(), Error> {

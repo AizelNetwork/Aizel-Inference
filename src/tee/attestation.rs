@@ -1,3 +1,4 @@
+use super::alicloud::AliCloud;
 use super::gcp::GCP;
 use common::error::Error;
 use common::tee::{provider::TEEProvider, TEEType};
@@ -9,12 +10,13 @@ pub struct AttestationAgent {
 impl AttestationAgent {
     pub async fn new() -> Result<AttestationAgent, Error> {
         let tee_type = get_current_tee_type().await?;
-        let provider = match tee_type {
-            TEEType::GCP => Ok(Box::new(GCP {})),
-            TEEType::Unkown => Err(Error::UnkownTEETypeERROR {
+        let provider: Box<dyn TEEProvider> = match tee_type {
+            TEEType::GCP => Box::new(GCP {}),
+            TEEType::AliCloud => Box::new(AliCloud{}),
+            TEEType::Unkown => return Err(Error::UnkownTEETypeERROR {
                 message: format!("Unkown TEE provider"),
             }),
-        }?;
+        };
         Ok(AttestationAgent { provider })
     }
 
