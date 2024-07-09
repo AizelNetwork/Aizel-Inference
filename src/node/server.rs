@@ -1,9 +1,10 @@
 mod aizel {
     include!(concat!(env!("OUT_DIR"), "/aizel.rs"));
 }
+use std::path::PathBuf;
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
-use super::config::{NodeConfig, DEFAULT_MODEL_DIR, WALLET_SK};
+use super::config::{NodeConfig, DEFAULT_MODEL_DIR, WALLET_SK_FILE};
 use crate::crypto::elgamal::{Ciphertext, Elgamal};
 use crate::crypto::secret::Secret;
 use common::error::Error;
@@ -53,9 +54,16 @@ lazy_static! {
         let provider = Provider::<Http>::try_from(env::var("ENDPOINT").unwrap()).unwrap();
 
         let chain_id: u64 = env::var("CHAIN_ID").unwrap().parse().unwrap();
-        let wallet = WALLET_SK
-            .get()
-            .unwrap()
+        let wallet_sk = fs::read_to_string(
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(WALLET_SK_FILE),
+        )
+        .map_err(|e| Error::FileError {
+            path: WALLET_SK_FILE.into(),
+            message: e.to_string(),
+        }).unwrap();
+        let wallet = wallet_sk
             .parse::<LocalWallet>()
             .unwrap()
             .with_chain_id(chain_id);
@@ -64,6 +72,7 @@ lazy_static! {
         let contract_address: String = env::var("CONTRACT_ADDRESS").unwrap().parse().unwrap();
         InferenceContract::new(contract_address.parse::<Address>().unwrap(), signer)
     };
+
 }
 
 #[tonic::async_trait]
