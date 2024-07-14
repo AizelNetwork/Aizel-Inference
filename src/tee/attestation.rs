@@ -48,6 +48,17 @@ pub async fn get_current_tee_type() -> Result<TEEType, Error> {
         }
     }
 
+    // Try AliCloud
+    {
+        let client = reqwest::Client::new();
+        let response = client.get("http://100.100.100.200/latest/meta-data").send().await.map_err(|e| Error::UnkownTEETypeERROR {
+            message: e.to_string(),
+        })?;
+        if response.status().is_success() {
+            return Ok(TEEType::AliCloud);
+        }
+    }
+
     return Err(Error::UnkownTEETypeERROR {
         message: "unkown tee type".to_string(),
     });
