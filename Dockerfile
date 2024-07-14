@@ -3,6 +3,8 @@ FROM rust:1.77.0 AS builder
 RUN apt-get update && apt-get -y upgrade \
    && apt-get install -y cmake libclang-dev protobuf-compiler
 
+RUN git clone https://github.com/intel/SGXDataCenterAttestationPrimitives.git && cd SGXDataCenterAttestationPrimitives/QuoteGeneration/quote_wrapper/tdx_attest/linux && make && cp libtdx_attest.so /usr/local/lib/ && cp ../tdx_attest.h /usr/local/include/
+
 RUN USER=root cargo new --bin app
 WORKDIR /app
 COPY ./Cargo.lock ./Cargo.lock
@@ -12,6 +14,7 @@ COPY ./src ./src
 COPY ./build.rs ./build.rs
 COPY ./common ./common
 COPY ./verifier ./verifier
+COPY ./tdx ./tdx
 
 RUN cargo build --release
 
