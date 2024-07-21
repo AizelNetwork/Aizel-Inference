@@ -24,12 +24,21 @@ COPY ./secret ./secret
 RUN cd secret && go build -o ../retrieve-secret
 
 FROM ubuntu:22.04
+
 RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
   libssl-dev \
   curl \
-  ca-certificates \
+  ca-certificates \ 
+  wget \ 
+  gnupg \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
+
+RUN echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
+  echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | tee /etc/apt/sources.list.d/intel-sgx.list && \
+  wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key --no-check-certificate | apt-key add -
+
+RUN apt-get update && apt-get install libtdx-attest && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client

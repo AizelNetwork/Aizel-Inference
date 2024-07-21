@@ -1,4 +1,4 @@
-use aizel_inference::node::config::{DEFAULT_ROOT_DIR, DATA_ADDRESS, GATE_ADDRESS};
+use aizel_inference::node::config::{DEFAULT_ROOT_DIR, DATA_ADDRESS, GATE_ADDRESS, prepare_config};
 use aizel_inference::node::{config::NodeConfig, node::Node};
 use chrono::Local;
 use clap::Parser;
@@ -41,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let base_dir = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(DEFAULT_ROOT_DIR);
+    prepare_config().await?;
     let config = NodeConfig {
         socket_address: SocketAddr::new(IpAddr::V4(args.ip.parse().unwrap()), args.port),
         root_path: base_dir,

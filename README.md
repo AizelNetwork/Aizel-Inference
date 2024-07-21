@@ -51,3 +51,22 @@ gcloud compute instances create inference-demo \
     --boot-disk-size=50 \
     --tags=will-dev
 ```
+
+## Deploy to AliCloud TDX Encrypted VM
+1. Configure your alicloud cli
+
+1. Prepare resources
+
+- Create a bucket to store the image
+    - `aliyun oss mb oss://aizel-tdx -c cn-beijing -L oss-cn-beijing` 
+- Upload secrets and configs to oss
+    - modify the content in the `tdx-data.json` 
+    - upload the json file to the oss `aliyun oss cp tdx-data.json oss://aizel-tdx/tdx-data.json`
+- Create a RAM role for alicloud deployment
+    - `aliyun ram CreateRole --RoleName aizel-inference --Description "Role for Aizel Inference Node" --AssumeRolePolicyDocument "{\"Statement\": [{\"Action\": \"sts:AssumeRole\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": [\"ecs.aliyuncs.com\"]}}],\"Version\": \"1\"}"`
+    - `aliyun ram AttachPolicyToRole --PolicyName AliyunOSSReadOnlyAccess --PolicyType System --RoleName aizel-inference`
+- Create a keypair for ecs. This keypair is only used to create the ecs instance and it can't be used to ssh login. Sshd service is banned on the Aizel inference.
+    - aliyun ecs CreateKeyPair --KeyPairName mock-key
+- Prepare your environment variable for your project
+    - export VSwitchID=[your switch id]
+    - export SecurityGroupId=[your security id]
