@@ -48,7 +48,9 @@ num_cpus = "1.16"
 encoding_rs = "0.8.34"
 ethers = { version = "2.0.14", features = ["ws"] }
 lazy_static = "1.4.0"
-
+hyper = { version = "0.14", features = ["full"] }
+hyperlocal = "0.8"
+tdx-attest-rs = { path = "./tdx/tdx-attest-rs"}
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }
 

@@ -1,4 +1,4 @@
-use aizel_inference::node::config::DEFAULT_ROOT_DIR;
+use aizel_inference::node::config::{DEFAULT_ROOT_DIR, DATA_ADDRESS, GATE_ADDRESS, prepare_config};
 use aizel_inference::node::{config::NodeConfig, node::Node};
 use chrono::Local;
 use clap::Parser;
@@ -17,16 +17,7 @@ struct Args {
     ip: String,
     /// Port of the node
     #[arg(short, long)]
-    port: u16,
-    /// socket address of the gate node
-    #[arg(short, long)]
-    gate_server: String,
-    /// socket address of the gate node
-    #[arg(short, long)]
-    data_server: String,
-    /// contract address
-    #[arg(short, long)]
-    contract_address: String,
+    port: u16
 }
 
 #[tokio::main]
@@ -50,14 +41,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let base_dir = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(DEFAULT_ROOT_DIR);
+    prepare_config().await?;
     let config = NodeConfig {
         socket_address: SocketAddr::new(IpAddr::V4(args.ip.parse().unwrap()), args.port),
         root_path: base_dir,
-        gate_address: args.gate_server.parse().unwrap(),
-        data_address: args.data_server.parse().unwrap(),
-        contract_address: args.contract_address.parse().unwrap(),
+        gate_address: DATA_ADDRESS.clone(),
+        data_address: GATE_ADDRESS.clone(),
     };
     let node = Node::new(config).await?;
+    // node.init().await?;
     node.run_server().await?;
     Ok(())
 }

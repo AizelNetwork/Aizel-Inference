@@ -45,6 +45,8 @@ pub enum VerificationError {
         expect: String,
         get: String,
     },
+    #[error("TDXVerificationError {message}")]
+    TDXVerificationError{message : String}
 }
 
 #[derive(Error, Debug)]

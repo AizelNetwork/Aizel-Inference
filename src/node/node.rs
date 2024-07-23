@@ -1,7 +1,9 @@
 use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::{inference_server::InferenceServer, NodeRegistrationRequest};
 use super::{
-    config::{NodeConfig, NODE_KEY_FILENAME, DEFAULT_MODEL_DIR, DEFAULT_MODEL},
+    config::{
+        NodeConfig, DEFAULT_MODEL, DEFAULT_MODEL_DIR, NODE_KEY_FILENAME,
+    },
     server::AizelInference,
 };
 use crate::{
@@ -25,9 +27,11 @@ impl Node {
             path: config.root_path.clone(),
             message: e.to_string(),
         })?;
-        fs::create_dir_all(&config.root_path.join(DEFAULT_MODEL_DIR)).map_err(|e| Error::FileError {
-            path: config.root_path.clone(),
-            message: e.to_string(),
+        fs::create_dir_all(&config.root_path.join(DEFAULT_MODEL_DIR)).map_err(|e| {
+            Error::FileError {
+                path: config.root_path.clone(),
+                message: e.to_string(),
+            }
         })?;
         let secret_path = config.root_path.clone().join(NODE_KEY_FILENAME);
         let secret = open_or_create_secret(secret_path)?;
@@ -49,7 +53,10 @@ impl Node {
                     address: gate_address.clone(),
                     message: e.to_string(),
                 })?;
-        let report: String = self.agent.get_attestation_report()?;
+        let report: String = self
+            .agent
+            .get_attestation_report(hex::encode(self.secret.name.0))
+            .await?;
         let request = tonic::Request::new(NodeRegistrationRequest {
             ip: format!("http://{}", self.config.socket_address.to_string()),
             pub_key: hex::encode(self.secret.name.0),
@@ -75,10 +82,16 @@ impl Node {
             config: self.config.clone(),
             secret: self.secret.clone(),
         };
-        if !aizel_inference_service.check_model_exist(DEFAULT_MODEL.to_string()).await? {
-            aizel_inference_service.download_model(DEFAULT_MODEL.to_string()).await?;
-        }
-        self.register().await?;
+        // if !aizel_inference_service
+        //     .check_model_exist(DEFAULT_MODEL.to_string())
+        //     .await?
+        // {
+        //     aizel_inference_service
+        //         .download_model(DEFAULT_MODEL.to_string())
+        //         .await?;
+        // }
+        // self.register().await?;
+        info!("attestation report {}", self.agent.get_attestation_report("hello world".to_string()).await?);
         let mut listen_addr = self.config.socket_address.clone();
         listen_addr.set_ip("0.0.0.0".parse().unwrap());
         Server::builder()
