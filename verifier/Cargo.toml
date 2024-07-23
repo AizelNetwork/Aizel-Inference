@@ -15,3 +15,6 @@ chrono = "0.4"
 jsonwebtoken = "9"
 tokio = { version = "1.0", features = ["full"] }
 common = { path = "../common" }
+intel-tee-quote-verification-rs = "0.3.0"
+intel-tee-quote-verification-sys = "0.2.1"
+hex = "0.4"
