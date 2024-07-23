@@ -82,15 +82,16 @@ impl Node {
             config: self.config.clone(),
             secret: self.secret.clone(),
         };
-        if !aizel_inference_service
-            .check_model_exist(DEFAULT_MODEL.to_string())
-            .await?
-        {
-            aizel_inference_service
-                .download_model(DEFAULT_MODEL.to_string())
-                .await?;
-        }
+        // if !aizel_inference_service
+        //     .check_model_exist(DEFAULT_MODEL.to_string())
+        //     .await?
+        // {
+        //     aizel_inference_service
+        //         .download_model(DEFAULT_MODEL.to_string())
+        //         .await?;
+        // }
         // self.register().await?;
+        info!("attestation report {}", self.agent.get_attestation_report("hello world".to_string()).await?);
         let mut listen_addr = self.config.socket_address.clone();
         listen_addr.set_ip("0.0.0.0".parse().unwrap());
         Server::builder()

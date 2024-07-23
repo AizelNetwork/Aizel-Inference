@@ -70,3 +70,23 @@ gcloud compute instances create inference-demo \
 - Prepare your environment variable for your project
     - export VSwitchID=[your switch id]
     - export SecurityGroupId=[your security id]
+
+
+## Verify TEE attestation report
+
+### GCP verification
+```
+cd verifier && cargo test --package verifier --lib -- tests::verify_gcp_token --exact --show-output
+```
+
+### AliCloud Verification
+1. Install dependencies
+- On debian 10 or Ubuntu18.04
+```
+echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
+echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | tee /etc/apt/sources.list.d/intel-sgx.list && \
+wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key --no-check-certificate | apt-key add -
+apt-get update && apt-get install libsgx-dcap-quote-verify-dev libsgx-dcap-default-qpl
+```
+2. Run the test case
+    - change the pccs_url in `/etc/sgx_default_qcnl.conf`, `"pccs_url": "https://sgx-dcap-server.cn-beijing.aliyuncs.com/sgx/certification/v4/"`

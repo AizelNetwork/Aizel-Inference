@@ -42,9 +42,14 @@ pub async fn get_current_tee_type() -> Result<TEEType, Error> {
             .await
             .map_err(|e| Error::UnkownTEETypeERROR {
                 message: e.to_string(),
-            })?;
-        if response.status().is_success() {
-            return Ok(TEEType::GCP);
+            });
+        match response {
+            Ok(res) => {
+                if res.status().is_success() {
+                    return Ok(TEEType::GCP);
+                }
+            },
+            Err(_) => {}
         }
     }
 
@@ -53,9 +58,14 @@ pub async fn get_current_tee_type() -> Result<TEEType, Error> {
         let client = reqwest::Client::new();
         let response = client.get("http://100.100.100.200/latest/meta-data").send().await.map_err(|e| Error::UnkownTEETypeERROR {
             message: e.to_string(),
-        })?;
-        if response.status().is_success() {
-            return Ok(TEEType::AliCloud);
+        });
+        match response {
+            Ok(res) => {
+                if res.status().is_success() {
+                    return Ok(TEEType::AliCloud);
+                }
+            },
+            Err(_) => {}
         }
     }
 

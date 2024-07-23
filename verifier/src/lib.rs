@@ -1,5 +1,48 @@
+use common::error::Error;
+use common::tee::TEEType;
+use reqwest::header::HeaderMap;
+pub mod alicloud_verifier;
 pub mod gcp_claim;
 pub mod gcp_verifier;
+
+pub async fn get_current_tee_type() -> Result<TEEType, Error> {
+    // Try GCP
+    {
+        let mut headers = HeaderMap::new();
+        headers.insert("Metadata-Flavor", "Google".parse().unwrap());
+        let client = reqwest::Client::new();
+        let response = client
+            .get("http://metadata.google.internal/computeMetadata/v1/instance/")
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| Error::UnkownTEETypeERROR {
+                message: e.to_string(),
+            })?;
+        if response.status().is_success() {
+            return Ok(TEEType::GCP);
+        }
+    }
+
+    // Try AliCloud
+    {
+        let client = reqwest::Client::new();
+        let response = client
+            .get("http://100.100.100.200/latest/meta-data")
+            .send()
+            .await
+            .map_err(|e| Error::UnkownTEETypeERROR {
+                message: e.to_string(),
+            })?;
+        if response.status().is_success() {
+            return Ok(TEEType::AliCloud);
+        }
+    }
+
+    return Err(Error::UnkownTEETypeERROR {
+        message: "unkown tee type".to_string(),
+    });
+}
 
 #[cfg(test)]
 mod tests {

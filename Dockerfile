@@ -1,10 +1,14 @@
 FROM rust:1.77.0 AS builder
 
 RUN apt-get update && apt-get -y upgrade \
-   && apt-get install -y cmake libclang-dev protobuf-compiler
+   && apt-get install -y cmake libclang-dev protobuf-compiler ca-certificates wget gnupg
 
-RUN git clone https://github.com/intel/SGXDataCenterAttestationPrimitives.git && cd SGXDataCenterAttestationPrimitives/QuoteGeneration/quote_wrapper/tdx_attest/linux && make && cp libtdx_attest.so /usr/local/lib/ && cp ../tdx_attest.h /usr/local/include/
+RUN echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
+   echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | tee /etc/apt/sources.list.d/intel-sgx.list && \
+   wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key --no-check-certificate | apt-key add -
 
+RUN apt-get update && apt-get install -y libtdx-attest-dev libsgx-dcap-quote-verify-dev && apt-get clean && rm -rf /var/lib/apt/lists/*    
+  
 RUN USER=root cargo new --bin app
 WORKDIR /app
 COPY ./Cargo.lock ./Cargo.lock
@@ -38,7 +42,7 @@ RUN echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
   echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | tee /etc/apt/sources.list.d/intel-sgx.list && \
   wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key --no-check-certificate | apt-key add -
 
-RUN apt-get update && apt-get install libtdx-attest && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get -y install libtdx-attest ntpdate && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
