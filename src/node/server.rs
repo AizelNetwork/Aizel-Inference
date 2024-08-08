@@ -1,21 +1,29 @@
 mod aizel {
     include!(concat!(env!("OUT_DIR"), "/aizel.rs"));
 }
-use std::path::PathBuf;
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
-use super::config::{NodeConfig, DEFAULT_MODEL_DIR, WALLET_SK_FILE};
+use super::config::{
+    NodeConfig, DEFAULT_MODEL_DIR, INPUT_BUCKET, MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET,
+};
+use crate::chains::{
+    contract::{INFERENCE_CONTRACT, WALLET},
+    ethereum::pubkey_to_address,
+};
+use crate::crypto::digest::Digest;
 use crate::crypto::elgamal::{Ciphertext, Elgamal};
 use crate::crypto::secret::Secret;
+use crate::s3_minio::client::MinioClient;
+use crate::tee::attestation::AttestationAgent;
 use common::error::Error;
 use ethers::{
-    contract::abigen,
-    middleware::SignerMiddleware,
-    providers::{Http, Provider},
-    signers::{LocalWallet, Signer},
-    types::Address,
+    core::{
+        abi::{self, Token},
+        utils,
+    },
+    signers::Signer,
+    types::{H160, U256},
 };
-use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::ggml_time_us;
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -24,55 +32,29 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::data_array::LlamaTokenDataArray;
+use log::error;
 use log::{info, warn};
-use minio::s3::{
-    args::{BucketExistsArgs, DownloadObjectArgs},
-    client::Client,
-    creds::StaticProvider,
-    http::BaseUrl,
-};
+use rand::Rng;
 use secp256k1::{PublicKey, SecretKey};
-use std::fs;
-use std::num::NonZeroU32;
-use std::time::{Duration, Instant};
-use std::{env, sync::Arc};
+use std::time::Duration;
+use std::{fs, num::NonZeroU32, str::FromStr};
 use tonic::{Request, Response, Status};
-abigen!(
-    InferenceContract,
-    r#"[
-        function submitInference(uint256 requestId,string memory output) external onlyOwner
-    ]"#,
-);
 
 pub struct AizelInference {
     pub config: NodeConfig,
     pub secret: Secret,
 }
 
-lazy_static! {
-    static ref INFERENCE_CONTRACT: InferenceContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(env::var("ENDPOINT").unwrap()).unwrap();
+fn generate_random(length: usize) -> String {
+    let mut rng = rand::thread_rng();
+    let mut dest = vec![0; length];
+    rng.fill(&mut dest[..]);
+    hex::encode(dest)
+}
 
-        let chain_id: u64 = env::var("CHAIN_ID").unwrap().parse().unwrap();
-        let wallet_sk = fs::read_to_string(
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(WALLET_SK_FILE),
-        )
-        .map_err(|e| Error::FileError {
-            path: WALLET_SK_FILE.into(),
-            message: e.to_string(),
-        }).unwrap();
-        let wallet = wallet_sk
-            .parse::<LocalWallet>()
-            .unwrap()
-            .with_chain_id(chain_id);
-
-        let signer = Arc::new(SignerMiddleware::new(provider, wallet));
-        let contract_address: String = env::var("CONTRACT_ADDRESS").unwrap().parse().unwrap();
-        InferenceContract::new(contract_address.parse::<Address>().unwrap(), signer)
-    };
-
+fn calc_hash(message: &str) -> Digest {
+    let token_hash = abi::encode_packed(&[Token::String(message.to_string())]).unwrap();
+    Digest(utils::keccak256(token_hash))
 }
 
 #[tonic::async_trait]
@@ -83,72 +65,186 @@ impl Inference for AizelInference {
     ) -> Result<Response<InferenceResponse>, Status> {
         let req = request.into_inner();
         let model = req.model.clone();
-        if !self
-            .check_model_exist(model.clone())
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?
-        {
-            info!("download models from data node {}", model);
-            // model doesn't exist, download model from data node
-            self.download_model(model.clone())
-                .await
-                .map_err(|e| Status::internal(e.to_string()))?;
-        }
 
-        // decrypt input
-        let decrypted_input = {
-            let ciphertext = hex::decode(req.input).map_err(|e| {
-                Status::internal(format!("failed decode ciphertext {}", e.to_string()))
-            })?;
-            let ct = Ciphertext::from_bytes(ciphertext.as_slice());
-            let rng = rand::thread_rng();
-            let mut elgamal = Elgamal::new(rng);
-            let plain = elgamal
-                .decrypt(&ct, &SecretKey::from_slice(&self.secret.secret.0).unwrap())
-                .map_err(|e| {
-                    Status::internal(format!("failed to decrypt input {}", e.to_string()))
-                })?;
-            String::from_utf8(plain)
-        }
-        .map_err(|e| Status::internal(format!("failde to get plain input {}", e.to_string())))?;
-
-        // model inference
-        let output = self
-            .model_inference(model, decrypted_input)
+        let client = MinioClient::get();
+        let user_input = client
+            .get_inputs(INPUT_BUCKET.to_string(), req.input.clone())
             .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-        let request_id = req.request_id;
+            .unwrap();
+
+        let decrypted_input = self.decrypt(user_input.input)?;
+        let output = match model.as_str() {
+            "Agent-1.0" => {
+                let transfer_info: Vec<&str> = decrypted_input.split(' ').collect();
+                if transfer_info.len() != 5 {
+                    return Err(Status::invalid_argument(
+                        "failed to parse the instruction".to_string(),
+                    ));
+                }
+                let from = pubkey_to_address(req.user_pk.clone()).unwrap();
+                let encoded_data = [
+                    abi::encode_packed(&[
+                        Token::Address(H160::from_str(&from).unwrap()),
+                        Token::Address(H160::from_str(transfer_info[4]).unwrap()),
+                    ])
+                    .unwrap(),
+                    abi::encode(&[Token::Uint(U256::from_dec_str(transfer_info[1]).unwrap())]),
+                    abi::encode_packed(&[Token::Address(
+                        H160::from_str(transfer_info[2]).unwrap(),
+                    )])
+                    .unwrap(),
+                ]
+                .concat();
+                let message = utils::keccak256(&encoded_data);
+                let signature = WALLET.sign_message(message).await.unwrap();
+                signature
+                    .verify(message.as_ref(), WALLET.address())
+                    .unwrap();
+                format!(
+                    "{:} from {:} signature 0x{:}",
+                    decrypted_input, from, signature
+                )
+            }
+            "Auth-1.0" => {
+                let cid = generate_random(24);
+                let from = pubkey_to_address(req.user_pk.clone()).unwrap();
+                let encoded_data = abi::encode_packed(&[
+                    Token::Address(H160::from_str(&from).unwrap()),
+                    Token::String(cid.clone()),
+                ])
+                .unwrap();
+                let message = utils::keccak256(&encoded_data);
+                let signature = WALLET.sign_message(message).await.unwrap();
+                signature
+                    .verify(message.as_ref(), WALLET.address())
+                    .unwrap();
+                format!("user {:} cid {:} signature {:}", from, cid, signature)
+            }
+            _ => {
+                // model inference
+                if !self
+                    .check_model_exist(model.clone())
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?
+                {
+                    info!("download models from data node {}", model);
+                    let _ = client
+                        .download_model(
+                            MODEL_BUCKET.to_string(),
+                            model.clone(),
+                            self.config.root_path.join(DEFAULT_MODEL_DIR).join(&model),
+                        )
+                        .await
+                        .map_err(|e| Status::internal(e.to_string()))?;
+                }
+
+                self.model_inference(model, decrypted_input)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?
+            }
+        };
 
         if output.len() == 0 {
             return Err(Status::internal("failed to generate output"));
         }
-        // encrypt output
-        // send model output to smart contract
-        let encrypted_output = {
-            let rng = rand::thread_rng();
-            let mut elgamal = Elgamal::new(rng);
-            let ct = elgamal
-                .encrypt(
-                    output.as_bytes(),
-                    &PublicKey::from_slice(&hex::decode(req.user_pk).unwrap()).unwrap(),
-                )
-                .map_err(|e| Status::internal(e.to_string()))?;
-            hex::encode(ct.to_bytes())
-        };
 
-        let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), encrypted_output.clone());
+        // encrypt output
+        let encrypted_output = self.encrypt(output, req.user_pk)?;
+        let output_hash = calc_hash(&encrypted_output);
+
+        // upload the output to the minio bucket
+        let _ = client
+            .upload(
+                OUTPUT_BUCKET.to_string(),
+                output_hash.to_string().clone(),
+                encrypted_output.as_bytes(),
+            )
+            .await
+            .map_err(|e| {
+                error!("failed to upload output {}", e);
+                Status::internal("failed to upload output")
+            })?;
+
+        // upload the report to minio bucket
+        // {
+        //     let agent = AttestationAgent::new().await.map_err(|e| {
+        //         error!("failed to create attestation agent {}", e);
+        //         Status::internal("failed to create attestation agent")
+        //     })?;
+        //     let report = agent
+        //         .get_attestation_report(encrypted_output)
+        //         .await
+        //         .map_err(|e| {
+        //             error!("failed to get attestation report {}", e);
+        //             Status::internal("failed to get attestation report")
+        //         })?;
+        //     let report_hash = calc_hash(&report);
+        //     client
+        //         .upload(REPORT_BUCKET.to_string(), report_hash, report.as_bytes())
+        //         .await
+        //         .map_err(|e| {
+        //             error!("failed to upload output {}", e);
+        //             Status::internal("failed to upload output")
+        //         })?;
+        // }
+        let mock_report = "mock report";
+        let report_hash = calc_hash(&mock_report);
+        client
+            .upload(
+                REPORT_BUCKET.to_string(),
+                report_hash.to_string().clone(),
+                mock_report.as_bytes(),
+            )
+            .await
+            .map_err(|e| {
+                error!("failed to upload output {}", e);
+                Status::internal("failed to upload output")
+            })?;
+        // send output hash to the contract
+        let tx = &INFERENCE_CONTRACT.submit_inference(
+            req.request_id.into(),
+            output_hash.0,
+            report_hash.0,
+        );
+
         let _pending_tx = tx
             .send()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(InferenceResponse {
-            output: encrypted_output,
+            output: output_hash.to_stirng(),
         }))
     }
 }
 
 impl AizelInference {
+    fn decrypt(&self, ciphertext: String) -> Result<String, Status> {
+        let ciphertext = hex::decode(ciphertext)
+            .map_err(|e| Status::internal(format!("failed decode ciphertext {}", e.to_string())))?;
+        let ct = Ciphertext::from_bytes(ciphertext.as_slice());
+        let rng = rand::thread_rng();
+        let mut elgamal = Elgamal::new(rng);
+        let plain = elgamal
+            .decrypt(&ct, &SecretKey::from_slice(&self.secret.secret.0).unwrap())
+            .map_err(|e| Status::internal(format!("failed to decrypt input {}", e.to_string())))?;
+        Ok(String::from_utf8(plain).map_err(|e| {
+            Status::internal(format!("failde to get plain input {}", e.to_string()))
+        })?)
+    }
+
+    fn encrypt(&self, plaintext: String, user_pk: String) -> Result<String, Status> {
+        let rng = rand::thread_rng();
+        let mut elgamal = Elgamal::new(rng);
+        let ct = elgamal
+            .encrypt(
+                plaintext.as_bytes(),
+                &PublicKey::from_slice(&hex::decode(user_pk).unwrap()).unwrap(),
+            )
+            .map_err(|e| Status::internal(e.to_string()))?;
+        Ok(hex::encode(ct.to_bytes()))
+    }
+
     pub async fn check_model_exist(&self, model: String) -> Result<bool, Error> {
         let model_path = self.config.root_path.join(DEFAULT_MODEL_DIR);
         for entry in fs::read_dir(&model_path).map_err(|e| Error::FileError {
@@ -168,56 +264,6 @@ impl AizelInference {
         Ok(false)
     }
 
-    pub async fn download_model(&self, model: String) -> Result<(), Error> {
-        let base_url = format!("http://{}", self.config.data_address)
-            .parse::<BaseUrl>()
-            .map_err(|e| Error::DownloadingModelError {
-                model: model.clone(),
-                message: e.to_string(),
-            })?;
-        info!("Trying to connect to MinIO at: `{:?}`", base_url);
-        let static_provider = StaticProvider::new("aizel_test", "aizel_test_pwd", None);
-        let client =
-            Client::new(base_url, Some(Box::new(static_provider)), None, None).map_err(|e| {
-                Error::DownloadingModelError {
-                    model: model.clone(),
-                    message: format!("failed to connect to data node {}", e.to_string()),
-                }
-            })?;
-        let bucket_name: &str = "models";
-        let object_name: &str = &model;
-        if client
-            .bucket_exists(&BucketExistsArgs::new(&bucket_name).unwrap())
-            .await
-            .map_err(|e| Error::DownloadingModelError {
-                model: model.clone(),
-                message: format!("failed to get bucket {}", e.to_string()),
-            })?
-        {
-            let time_start = Instant::now();
-            let model_path = self.config.root_path.join(DEFAULT_MODEL_DIR).join(&model);
-            let args: DownloadObjectArgs =
-                DownloadObjectArgs::new(bucket_name, object_name, &model_path.to_str().unwrap())
-                    .unwrap();
-            let _ =
-                client
-                    .download_object(&args)
-                    .await
-                    .map_err(|e| Error::DownloadingModelError {
-                        model: model.clone(),
-                        message: format!("failed to download model {}", e.to_string()),
-                    })?;
-            let duration = time_start.elapsed();
-            info!("downloading model time cost: {:?}", duration);
-        } else {
-            return Err(Error::DownloadingModelError {
-                model: model.clone(),
-                message: format!("bucket doesn't exist"),
-            });
-        }
-        Ok(())
-    }
-
     async fn model_inference(&self, model_name: String, prompt: String) -> Result<String, Error> {
         let model_path = self
             .config
@@ -226,10 +272,10 @@ impl AizelInference {
             .join(model_name);
         // LLM parameters
         // TODO: update
-        let ctx_size = NonZeroU32::new(2048).unwrap();
+        let ctx_size = NonZeroU32::new(64).unwrap();
         let seed = 1234;
         let threads = num_cpus::get();
-        let n_len: i32 = 128;
+        let n_len: i32 = 32;
         let mut res = Vec::new();
         // init LLM
         let backend = LlamaBackend::init().map_err(|e| Error::InferenceError {
@@ -414,8 +460,7 @@ mod tests {
         let config = NodeConfig {
             socket_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
             root_path: base_dir,
-            gate_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
-            data_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)
+            data_id: 1,
         };
         let inference = AizelInference {
             config,
@@ -429,11 +474,5 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", res);
-    }
-
-    #[tokio::test]
-    async fn test_contract() {
-        let tx = &INFERENCE_CONTRACT.submit_inference(1.into(), "mock output".to_string());
-        let _pending_tx = tx.send().await.unwrap();
     }
 }

@@ -20,6 +20,10 @@ impl Digest {
     pub fn size(&self) -> usize {
         self.0.len()
     }
+
+    pub fn to_stirng(&self) -> String {
+        format!("0x{:}", hex::encode(self.0))
+    }
 }
 
 impl From<&[u8; 32]> for Digest {
