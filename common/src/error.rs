@@ -27,6 +27,8 @@ pub enum Error {
     ServerError { message: String },
     #[error("InferenceError: {message}")]
     InferenceError { message: String },
+    #[error("MinIOError: {message}")]
+    MinIOError { message: String },
     #[error("DownloadingModelError: {message}")]
     DownloadingModelError { model: String, message: String },
 }
@@ -46,7 +48,7 @@ pub enum VerificationError {
         get: String,
     },
     #[error("TDXVerificationError {message}")]
-    TDXVerificationError{message : String}
+    TDXVerificationError { message: String },
 }
 
 #[derive(Error, Debug)]

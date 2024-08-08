@@ -100,6 +100,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sha256",
+ "sha3",
  "tdx-attest-rs",
  "thiserror",
  "tokio",

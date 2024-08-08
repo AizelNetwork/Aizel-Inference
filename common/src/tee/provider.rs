@@ -2,7 +2,7 @@ use crate::error::Error;
 use crate::tee::TEEType;
 use std::future::Future;
 use std::pin::Pin;
-pub trait TEEProvider {
+pub trait TEEProvider: Send + Sync {
     fn get_report(
         &self,
         nonce: String,

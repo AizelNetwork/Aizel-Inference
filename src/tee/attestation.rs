@@ -12,10 +12,12 @@ impl AttestationAgent {
         let tee_type = get_current_tee_type().await?;
         let provider: Box<dyn TEEProvider> = match tee_type {
             TEEType::GCP => Box::new(GCP {}),
-            TEEType::AliCloud => Box::new(AliCloud{}),
-            TEEType::Unkown => return Err(Error::UnkownTEETypeERROR {
-                message: format!("Unkown TEE provider"),
-            }),
+            TEEType::AliCloud => Box::new(AliCloud {}),
+            TEEType::Unkown => {
+                return Err(Error::UnkownTEETypeERROR {
+                    message: format!("Unkown TEE provider"),
+                })
+            }
         };
         Ok(AttestationAgent { provider })
     }
@@ -48,7 +50,7 @@ pub async fn get_current_tee_type() -> Result<TEEType, Error> {
                 if res.status().is_success() {
                     return Ok(TEEType::GCP);
                 }
-            },
+            }
             Err(_) => {}
         }
     }
@@ -56,15 +58,19 @@ pub async fn get_current_tee_type() -> Result<TEEType, Error> {
     // Try AliCloud
     {
         let client = reqwest::Client::new();
-        let response = client.get("http://100.100.100.200/latest/meta-data").send().await.map_err(|e| Error::UnkownTEETypeERROR {
-            message: e.to_string(),
-        });
+        let response = client
+            .get("http://100.100.100.200/latest/meta-data")
+            .send()
+            .await
+            .map_err(|e| Error::UnkownTEETypeERROR {
+                message: e.to_string(),
+            });
         match response {
             Ok(res) => {
                 if res.status().is_success() {
                     return Ok(TEEType::AliCloud);
                 }
-            },
+            }
             Err(_) => {}
         }
     }
