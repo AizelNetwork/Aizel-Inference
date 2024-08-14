@@ -1,107 +1,89 @@
-use crate::chains::contract::DATA_REGISTRY_CONTRACT;
 use common::error::Error;
 use lazy_static::lazy_static;
-use log::info;
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::fs;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-pub const DEFAULT_BASE_PORT: u16 = 8080;
-pub const NODE_KEY_FILENAME: &str = "node_key.json";
+use serde::de::DeserializeOwned;
+use serde_derive::Deserialize;
+use std::fs::File;
+use std::path::{Path, PathBuf};
 
+pub const DEFAULT_BASE_PORT: u16 = 8080;
+
+pub const NODE_KEY_FILENAME: &str = "node_key.json";
 pub const DEFAULT_ROOT_DIR: &str = "aizel";
 pub const DEFAULT_MODEL_DIR: &str = "models";
+pub const DEFAULT_AIZEL_CONFIG: &str = "aizel_config";
+
 pub const DEFAULT_MODEL: &str = "llama2_7b_chat.Q4_0.gguf-1.0";
-pub const WALLET_SK_FILE: &str = "wallet-sk";
-pub const MINIO_USER_FILE: &str = "minio-user";
-pub const MINIO_PWD_FILE: &str = "minio-pwd";
-pub const ALICLOUD_CONFIG: &str = "config";
 
 pub const INPUT_BUCKET: &str = "users-input";
 pub const MODEL_BUCKET: &str = "models";
 pub const OUTPUT_BUCKET: &str = "users-output";
 pub const REPORT_BUCKET: &str = "inference-report";
 
-/// socket_address: self server listen socket address
-/// root_path:
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct NodeConfig {
-    /// self socket address
-    pub socket_address: SocketAddr,
-    pub root_path: PathBuf,
-    pub data_id: u64,
+pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
+
+#[derive(Deserialize, Debug)]
+pub struct AizelConfig {
+    // contract configuration
+    pub chain_id: u64,
+    pub endpoint: String,
+    pub inference_contract: String,
+    pub inference_registry_contract: String,
+    pub data_registry_contract: String,
+    pub wallet_sk: String,
+    // data node configuration
+    pub minio_account: String,
+    pub minio_password: String,
+    pub data_node_id: u64,
+    pub data_node_url: Option<String>,
+    // inference node configuration
+    pub node_name: String,
+    pub node_bio: String,
+    pub initial_stake: u64,
+    pub within_tee: bool,
+    pub node_secret: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct Config {
-    #[serde(rename = "CHAIN_ID")]
-    chain_id: String,
-    #[serde(rename = "ENDPOINT")]
-    endpoint: String,
-    #[serde(rename = "INFERENCE_CONTRACT")]
-    inference_contract: String,
-    #[serde(rename = "INFERENCE_REGISTRY_CONTRACT")]
-    inference_registry_contract: String,
-    #[serde(rename = "DATA_REGISTRY_CONTRACT")]
-    data_registry_contract: String,
+pub trait FromFile<T: DeserializeOwned> {
+    fn from_file<P: AsRef<Path>>(path: P) -> Result<T, String> {
+        let file = File::options()
+            .read(true)
+            .open(path)
+            .map_err(|e| format!("can't open file {:?}", e))?;
+        serde_yaml::from_reader(file).map_err(|e| format!("can't deserialize file {:?}", e))
+    }
 }
+
+impl FromFile<AizelConfig> for AizelConfig {}
 
 lazy_static! {
-    pub static ref DATA_ID: u64 = env::var("DATA_ID").unwrap().parse().unwrap();
-    pub static ref INITAIL_STAKE_AMOUNT: u64 =
-        env::var("INITAIL_STAKE_AMOUNT").unwrap().parse().unwrap();
+    pub static ref AIZEL_CONFIG: AizelConfig = prepare_config().unwrap();
 }
 
-pub async fn prepare_config() -> Result<u64, Error> {
-    // If on AliCloud, export configs to environment variable
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build()
-        .map_err(|e| Error::UnkownTEETypeERROR {
-            message: e.to_string(),
-        })?;
-    let response = client
-        .get("http://100.100.100.200/latest/meta-data")
-        .send()
-        .await;
+pub fn root_dir() -> PathBuf {
+    dirs::home_dir().unwrap().join(DEFAULT_ROOT_DIR)
+}
 
-    match response {
-        Ok(resp) => {
-            if resp.status().is_success() {
-                let config = fs::read_to_string(
-                    dirs::home_dir()
-                        .unwrap_or_else(|| PathBuf::from("."))
-                        .join(ALICLOUD_CONFIG),
-                )
-                .map_err(|e| Error::FileError {
-                    path: ALICLOUD_CONFIG.into(),
-                    message: e.to_string(),
-                })
-                .unwrap();
-                let config: Config = serde_json::from_str(&config).unwrap();
-                env::set_var("CHAIN_ID", &config.chain_id);
-                env::set_var("ENDPOINT", &config.endpoint);
-                env::set_var("INFERENCE_CONTRACT", &config.inference_contract);
-                env::set_var(
-                    "INFERENCE_REGISTRY_CONTRACT",
-                    &config.inference_registry_contract,
-                );
-                env::set_var("DATA_REGISTRY_CONTRACT", &config.data_registry_contract);
-            }
-        }
-        Err(_) => {
-            info!("not on alicloud");
-        }
-    }
-    // according to the data node id, query the url of the data node
-    let data_id: u64 = env::var("DATA_NODE_ID").unwrap().parse().unwrap();
-    let data_node_url: String = DATA_REGISTRY_CONTRACT
-        .get_url(data_id.into())
-        .call()
-        .await
-        .unwrap();
-    info!("data node url {}", data_node_url);
-    env::set_var("DATA_ADDRESS", &data_node_url);
-    return Ok(data_id);
+pub fn config_path() -> PathBuf {
+    root_dir().join(DEFAULT_AIZEL_CONFIG)
+}
+
+pub fn models_dir() -> PathBuf {
+    root_dir().join(DEFAULT_MODEL_DIR)
+}
+
+pub fn node_key_path() -> PathBuf {
+    root_dir().join(NODE_KEY_FILENAME)
+}
+
+pub fn prepare_config() -> Result<AizelConfig, Error> {
+    Ok(
+        AizelConfig::from_file(config_path()).map_err(|e| Error::SerDeError {
+            message: format!("failed to parse config: {}", e.to_string()),
+        })?,
+    )
+}
+
+#[test]
+fn test_aizel_config() {
+    println!("{:?}", AizelConfig::from_file("./config.yml").unwrap());
 }

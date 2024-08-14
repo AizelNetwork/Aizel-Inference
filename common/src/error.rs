@@ -23,7 +23,7 @@ pub enum Error {
     },
     #[error("RegistrationError: {message}")]
     RegistrationError { message: String },
-    #[error("RegistrationError: {message}")]
+    #[error("ServerError: {message}")]
     ServerError { message: String },
     #[error("InferenceError: {message}")]
     InferenceError { message: String },
@@ -31,6 +31,8 @@ pub enum Error {
     MinIOError { message: String },
     #[error("DownloadingModelError: {message}")]
     DownloadingModelError { model: String, message: String },
+    #[error("InvalidArgumentError: '{argument}': {message}")]
+    InvalidArgumentError { argument: String, message: String },
 }
 
 #[derive(Error, Debug)]

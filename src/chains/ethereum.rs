@@ -2,8 +2,8 @@ use common::error::Error;
 use hex;
 use secp256k1::PublicKey;
 use sha3::{Digest, Keccak256};
-pub fn pubkey_to_address(pubkey: String) -> Result<String, Error> {
-    let compressed_pub_key_bytes = hex::decode(&pubkey).unwrap();
+pub fn pubkey_to_address(pubkey: &str) -> Result<String, Error> {
+    let compressed_pub_key_bytes = hex::decode(pubkey).unwrap();
     let public_key = PublicKey::from_slice(&compressed_pub_key_bytes).unwrap();
     ethereum_address(&public_key)
 }
@@ -29,10 +29,9 @@ mod test {
 
     #[test]
     fn test_pubkey_to_address() {
-        let address = pubkey_to_address(
-            "03cb3239925b509808de491d41aa17af5f7fee1a50431c9f0838f69bd422c883d7".to_string(),
-        )
-        .unwrap();
+        let address =
+            pubkey_to_address("03cb3239925b509808de491d41aa17af5f7fee1a50431c9f0838f69bd422c883d7")
+                .unwrap();
 
         assert_eq!(
             address,

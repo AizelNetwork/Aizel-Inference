@@ -1,4 +1,5 @@
-use crate::node::config::{MINIO_PWD_FILE, MINIO_USER_FILE};
+use crate::chains::contract::Contract;
+use crate::node::config::AIZEL_CONFIG;
 use common::error::Error;
 use lazy_static::lazy_static;
 use log::{error, info};
@@ -13,11 +14,11 @@ use minio::s3::{
     http::BaseUrl,
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::time::Instant;
-use std::{env, path::PathBuf};
 
 lazy_static! {
-    static ref MINIO_CLIENT: MinioClient = MinioClient::default();
+    static ref MINIO_CLIENT: MinioClient = MinioClient::new();
 }
 
 #[derive(Deserialize, Serialize, Debug, Default)]
@@ -36,55 +37,39 @@ pub struct MinioClient {
     pub client: Client,
 }
 
-impl Default for MinioClient {
-    fn default() -> Self {
-        let base_url = env::var("DATA_ADDRESS")
+impl MinioClient {
+    fn new() -> Self {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let data_node_url = rt
+            .block_on(Contract::query_data_node_url(AIZEL_CONFIG.data_node_id))
             .unwrap()
             .parse::<BaseUrl>()
             .unwrap();
-        let minio_user = std::fs::read_to_string(
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(MINIO_USER_FILE),
-        )
-        .map_err(|e| Error::FileError {
-            path: MINIO_USER_FILE.into(),
-            message: e.to_string(),
-        })
-        .unwrap();
-        let minio_pwd = std::fs::read_to_string(
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(MINIO_PWD_FILE),
-        )
-        .map_err(|e| Error::FileError {
-            path: MINIO_PWD_FILE.into(),
-            message: e.to_string(),
-        })
-        .unwrap();
-        let static_provider = StaticProvider::new(&minio_user, &minio_pwd, None);
-
-        let client = Client::new(base_url, Some(Box::new(static_provider)), None, None).unwrap();
+        let static_provider = StaticProvider::new(
+            &AIZEL_CONFIG.minio_account,
+            &AIZEL_CONFIG.minio_password,
+            None,
+        );
+        let client =
+            Client::new(data_node_url, Some(Box::new(static_provider)), None, None).unwrap();
         MinioClient { client }
     }
-}
 
-impl MinioClient {
     pub fn get<'a>() -> &'a Self {
         &MINIO_CLIENT
     }
 
     pub async fn get_inputs(
         &self,
-        bucket_name: String,
-        object_name: String,
+        bucket_name: &str,
+        object_name: &str,
     ) -> Result<UserInput, Error> {
         // Check 'bucket_name' bucket exist or not.
-        self.bucket_exists(bucket_name.clone()).await?;
+        self.bucket_exists(bucket_name).await?;
 
         let resp = self
             .client
-            .get_object_old(&GetObjectArgs::new(&bucket_name, &object_name).unwrap())
+            .get_object_old(&GetObjectArgs::new(bucket_name, object_name).unwrap())
             .await
             .map_err(|e| Error::MinIOError {
                 message: format!("failed to get object {}", e.to_string()),
@@ -102,16 +87,16 @@ impl MinioClient {
 
     pub async fn upload(
         &self,
-        bucket_name: String,
-        object_name: String,
+        bucket_name: &str,
+        object_name: &str,
         data: &[u8],
     ) -> Result<(), Error> {
         // Check 'bucket_name' bucket exist or not.
-        self.bucket_exists(bucket_name.clone()).await?;
+        self.bucket_exists(bucket_name).await?;
 
         match self
             .client
-            .get_object_old(&ObjectConditionalReadArgs::new(&bucket_name, &object_name).unwrap())
+            .get_object_old(&ObjectConditionalReadArgs::new(bucket_name, object_name).unwrap())
             .await
         {
             Ok(_) => {
@@ -149,20 +134,20 @@ impl MinioClient {
 
     pub async fn download_model(
         &self,
-        bucket: String,
-        model: String,
-        path: PathBuf,
+        bucket: &str,
+        model: &str,
+        path: &PathBuf,
     ) -> Result<(), Error> {
-        self.bucket_exists(bucket.clone()).await?;
+        self.bucket_exists(bucket).await?;
         let time_start = Instant::now();
         let args: DownloadObjectArgs =
-            DownloadObjectArgs::new(&bucket, &model, &path.to_str().unwrap()).unwrap();
+            DownloadObjectArgs::new(bucket, model, path.to_str().unwrap()).unwrap();
         let _ =
             self.client
                 .download_object(&args)
                 .await
                 .map_err(|e| Error::DownloadingModelError {
-                    model: model.clone(),
+                    model: model.to_string(),
                     message: format!("failed to download model {}", e.to_string()),
                 })?;
         let duration = time_start.elapsed();
@@ -170,11 +155,11 @@ impl MinioClient {
         Ok(())
     }
 
-    async fn bucket_exists(&self, bucket_name: String) -> Result<bool, Error> {
+    async fn bucket_exists(&self, bucket_name: &str) -> Result<bool, Error> {
         // Check 'bucket_name' bucket exist or not.
         match self
             .client
-            .bucket_exists(&BucketExistsArgs::new(&bucket_name).unwrap())
+            .bucket_exists(&BucketExistsArgs::new(bucket_name).unwrap())
             .await
         {
             Ok(exists) => {
@@ -196,8 +181,8 @@ async fn test_get_input() {
     let client = MinioClient::get();
     let input = client
         .get_inputs(
-            "users-input".to_string(),
-            "0xb351fdb21da85939bbec03dce1a6e00434ac2b763fa86becf23b00db7805effe".to_string(),
+            "users-output",
+            "0x34ee5d5e212beedbd5f45ff352bffc82dd356ff03e830272a44ab976f4a421bc",
         )
         .await;
     println!("{:?}", input.unwrap());

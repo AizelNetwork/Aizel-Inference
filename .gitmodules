@@ -1,0 +1,3 @@
+[submodule "aizel-face-model-service"]
+	path = aizel-face-model-service
+	url = git@github.com:AizelNetwork/aizel-face-model-service.git

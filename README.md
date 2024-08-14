@@ -20,11 +20,16 @@ cargo build
 1. Create GCP secrets in google secret manager
 ```shell
 gcloud secrets create wallet-sk --replication-policy="automatic"
+gcloud secrets create minio-user --replication-policy="automatic"
+gcloud secrets create minio-pwd --replication-policy="automatic"
 ```
 
 2. Upload secret to gcp secret manager
 ```shell
 echo -n "647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae" | gcloud secrets versions add wallet-sk --data-file=-
+echo -n "aizel_test" | gcloud secrets versions add minio-user --data-file=-
+echo -n "aizel_test_pwd" | gcloud secrets versions add minio-pwd --data-file=-
+
 ```
 3. Create a service account for the confidential space
 ```
@@ -45,7 +50,7 @@ gcloud compute instances create inference-demo \
     --image-project=confidential-space-images \
     --image-family=confidential-space-debug \
     --service-account=991449629434-compute@developer.gserviceaccount.com \
-    --metadata="^~^tee-image-reference=asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0~tee-env-CHAIN_ID=4369~tee-env-ENDPOINT=http://34.124.144.235:9944~tee-env-PRIVATE_KEY=647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae~tee-env-CONTRACT_ADDRESS=0x5F9BAe82718B469721C6CD55D6Ab356dc5D60c5B~tee-container-log-redirect=true" \
+    --metadata="^~^tee-image-reference=asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0~tee-env-CHAIN_ID=4369~tee-env-ENDPOINT=http://34.124.144.235:9944~tee-env-PRIVATE_KEY=647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae~tee-env-INFERENCE_CONTRACT=0x5F9BAe82718B469721C6CD55D6Ab356dc5D60c5B~tee-container-log-redirect=true" \
     --machine-type=n2d-standard-16 \
     --min-cpu-platform="AMD Milan" \
     --boot-disk-size=50 \
@@ -81,12 +86,20 @@ cd verifier && cargo test --package verifier --lib -- tests::verify_gcp_token --
 
 ### AliCloud Verification
 1. Install dependencies
-- On debian 10 or Ubuntu18.04
+- On Ubuntu22.04
 ```
 echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
 echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | tee /etc/apt/sources.list.d/intel-sgx.list && \
 wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key --no-check-certificate | apt-key add -
 apt-get update && apt-get install libsgx-dcap-quote-verify-dev libsgx-dcap-default-qpl
 ```
+- On Ubuntu20.04
+```
+echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
+echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main' | tee /etc/apt/sources.list.d/intel-sgx.list &&\
+wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key --no-check-certificate | apt-key add -
+apt-get update && apt-get install libsgx-dcap-quote-verify-dev libsgx-dcap-default-qpl
+```
+
 2. Run the test case
     - change the pccs_url in `/etc/sgx_default_qcnl.conf`, `"pccs_url": "https://sgx-dcap-server.cn-beijing.aliyuncs.com/sgx/certification/v4/"`

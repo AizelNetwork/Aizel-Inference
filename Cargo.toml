@@ -43,7 +43,6 @@ aes-gcm = "0.10"
 dirs = "5.0"
 common = { path = "./common"}
 minio = { git = "https://github.com/minio/minio-rs" }
-llama-cpp-2 = "0.1.53"
 num_cpus = "1.16"
 encoding_rs = "0.8.34"
 ethers = { version = "2.0.14", features = ["ws"] }
@@ -52,6 +51,8 @@ hyper = { version = "0.14", features = ["full"] }
 hyperlocal = "0.8"
 tdx-attest-rs = { path = "./tdx/tdx-attest-rs"}
 sha3 = "0.10.8"
+serde_yaml = "0.9"
+openai-api-rs = "5.0.4"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }
