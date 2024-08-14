@@ -21,7 +21,7 @@ impl Digest {
         self.0.len()
     }
 
-    pub fn to_stirng(&self) -> String {
+    pub fn to_string(&self) -> String {
         format!("0x{:}", hex::encode(self.0))
     }
 }

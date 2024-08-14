@@ -16,12 +16,12 @@ import (
 )
 
 type Config struct {
-	CHAIN_ID         string `json:"CHAIN_ID"`
-	ENDPOINT         string `json:"ENDPOINT"`
-	CONTRACT_ADDRESS string `json:"CONTRACT_ADDRESS"`
-	DATA_ADDRESS     string `json:"DATA_ADDRESS"`
-	GATE_ADDRESS     string `json:"GATE_ADDRESS"`
-	WALLET_SK        string `json:"WALLET_SK"`
+	CHAIN_ID           string `json:"CHAIN_ID"`
+	ENDPOINT           string `json:"ENDPOINT"`
+	INFERENCE_CONTRACT string `json:"INFERENCE_CONTRACT"`
+	DATA_ADDRESS       string `json:"DATA_ADDRESS"`
+	GATE_ADDRESS       string `json:"GATE_ADDRESS"`
+	WALLET_SK          string `json:"WALLET_SK"`
 }
 
 func OnAliCloud() bool {
@@ -39,39 +39,43 @@ func WithSecurityToken(t string) oss.ClientOption {
 	}
 }
 
+func GetSecret(skName string) {
+	// context
+	ctx := context.Background()
+	projectNumber, err := metadata.NumericProjectID()
+	if err != nil {
+		log.Fatalf("Failed to get project number: %v", err)
+	}
+	// create secretmanager client
+	client, err := secretmanager.NewClient(ctx)
+	if err != nil {
+		log.Fatalf("failed to setup client: %v", err)
+	}
+	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
+		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectNumber, skName),
+	}
+	result, err := client.AccessSecretVersion(ctx, accessRequest)
+	if err != nil {
+		log.Fatalf("failed to access secret: %v", err)
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("failed to get home dir: %v", err)
+	}
+	err = os.WriteFile(fmt.Sprintf("%s/%s", homeDir, skName), result.Payload.Data, 0644)
+	if err != nil {
+		log.Fatalf("failed to write secret to file %+v", err)
+	}
+}
+
 func main() {
 	if metadata.OnGCE() {
 		walletSk := "wallet-sk"
-		// context
-		ctx := context.Background()
-		projectNumber, err := metadata.NumericProjectID()
-		if err != nil {
-			log.Fatalf("Failed to get project number: %v", err)
-		}
-		// create secretmanager client
-		client, err := secretmanager.NewClient(ctx)
-		if err != nil {
-			log.Fatalf("failed to setup client: %v", err)
-		}
-
-		// get token first
-		accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
-			Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectNumber, walletSk),
-		}
-
-		result, err := client.AccessSecretVersion(ctx, accessRequest)
-		if err != nil {
-			log.Fatalf("failed to access secret: %v", err)
-		}
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			log.Fatalf("failed to get home dir: %v", err)
-		}
-		err = os.WriteFile(fmt.Sprintf("%s/wallet-sk", homeDir), result.Payload.Data, 0644)
-		if err != nil {
-			log.Fatalf("failed to write secret to file %+v", err)
-		}
-
+		minioUser := "minio-user"
+		minioPassword := "minio-pwd"
+		GetSecret(walletSk)
+		GetSecret(minioUser)
+		GetSecret(minioPassword)
 	} else if OnAliCloud() {
 		resp, err := http.Get("http://100.100.100.200/latest/meta-data/region-id")
 		if err != nil {

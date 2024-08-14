@@ -1,7 +1,6 @@
 use common::error::{Error, VerificationError};
 use common::tee::{verifier::TEEVerifier, TEEType, TEEType::AliCloud};
 use intel_tee_quote_verification_rs::*;
-use intel_tee_quote_verification_sys as qvl_sys;
 use log::{error, info, warn};
 use std::mem;
 use std::ptr;

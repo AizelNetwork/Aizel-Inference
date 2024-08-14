@@ -1,9 +1,7 @@
-use aizel_inference::node::config::{prepare_config, DEFAULT_ROOT_DIR};
-use aizel_inference::node::{config::NodeConfig, node::Node};
+use aizel_inference::node::node::Node;
 use chrono::Local;
 use clap::Parser;
 use env_logger::Env;
-use std::path::PathBuf;
 use std::{
     io::Write,
     net::{IpAddr, SocketAddr},
@@ -38,16 +36,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
         })
         .init();
-    let base_dir = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(DEFAULT_ROOT_DIR);
-    let data_id = prepare_config().await?;
-    let config = NodeConfig {
-        socket_address: SocketAddr::new(IpAddr::V4(args.ip.parse().unwrap()), args.port),
-        root_path: base_dir,
-        data_id: data_id,
-    };
-    let node = Node::new(config).await?;
+
+    let node = Node::new(SocketAddr::new(
+        IpAddr::V4(args.ip.parse().unwrap()),
+        args.port,
+    ))
+    .await?;
     node.run_server().await?;
     Ok(())
 }

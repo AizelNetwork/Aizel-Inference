@@ -1,14 +1,14 @@
-use crate::node::config::WALLET_SK_FILE;
+use crate::node::config::AIZEL_CONFIG;
 use common::error::Error;
 use ethers::{
     contract::abigen,
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
-    types::Address,
+    types::{Address, U256},
 };
 use lazy_static::lazy_static;
-use std::{env, fs, path::PathBuf, sync::Arc};
+use std::sync::Arc;
 abigen!(
     InferenceContract,
     r#"[
@@ -31,45 +31,95 @@ abigen!(
     ]"#,
 );
 
+pub struct Contract {}
+
+impl Contract {
+    pub async fn register(
+        name: String,
+        bio: String,
+        url: String,
+        pubkey: String,
+        data_node_id: u64,
+        tee_type: u32,
+        stake_amount: u64,
+    ) -> Result<(), Error> {
+        let tx = INFERENCE_REGISTRY_CONTRACT.register_node(
+            name,
+            bio,
+            url,
+            pubkey,
+            data_node_id.into(),
+            tee_type.into(),
+        );
+        let tx = tx.value::<U256>(stake_amount.into());
+        let _ = tx.send().await.map_err(|e| Error::RegistrationError {
+            message: e.to_string(),
+        })?;
+        Ok(())
+    }
+
+    pub async fn query_data_node_url(data_node_id: u64) -> Result<String, Error> {
+        let data_node_url: String = DATA_REGISTRY_CONTRACT
+            .get_url(data_node_id.into())
+            .call()
+            .await
+            .map_err(|e| Error::InvalidArgumentError {
+                argument: format!("data node id {}", data_node_id),
+                message: e.to_string(),
+            })?;
+        Ok(data_node_url)
+    }
+
+    pub async fn submit_inference(
+        request_id: u64,
+        output_hash: [u8; 32],
+        report_hash: [u8; 32],
+    ) -> Result<(), Error> {
+        let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), output_hash, report_hash);
+        let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
+            message: format!("failed to submit inference reuslt {}", e.to_string()),
+        })?;
+        Ok(())
+    }
+}
+
 lazy_static! {
     pub static ref WALLET: LocalWallet = {
-        let chain_id: u64 = env::var("CHAIN_ID").unwrap().parse().unwrap();
-        let wallet_sk = fs::read_to_string(
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(WALLET_SK_FILE),
-        )
-        .map_err(|e| Error::FileError {
-            path: WALLET_SK_FILE.into(),
-            message: e.to_string(),
-        })
-        .unwrap();
-        let wallet_sk = wallet_sk.trim();
-        wallet_sk
+        AIZEL_CONFIG
+            .wallet_sk
             .parse::<LocalWallet>()
             .unwrap()
-            .with_chain_id(chain_id)
+            .with_chain_id(AIZEL_CONFIG.chain_id)
     };
     pub static ref INFERENCE_CONTRACT: InferenceContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(env::var("ENDPOINT").unwrap()).unwrap();
+        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
         let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        let contract_address: String = env::var("INFERENCE_CONTRACT").unwrap().parse().unwrap();
-        InferenceContract::new(contract_address.parse::<Address>().unwrap(), signer)
+        InferenceContract::new(
+            AIZEL_CONFIG.inference_contract.parse::<Address>().unwrap(),
+            signer,
+        )
     };
     pub static ref DATA_REGISTRY_CONTRACT: DataRegistryContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(env::var("ENDPOINT").unwrap()).unwrap();
+        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
         let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        let contract_address: String = env::var("DATA_REGISTRY_CONTRACT").unwrap().parse().unwrap();
-        DataRegistryContract::new(contract_address.parse::<Address>().unwrap(), signer)
+        DataRegistryContract::new(
+            AIZEL_CONFIG
+                .data_registry_contract
+                .parse::<Address>()
+                .unwrap(),
+            signer,
+        )
     };
     pub static ref INFERENCE_REGISTRY_CONTRACT: InferenceRegistryContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(env::var("ENDPOINT").unwrap()).unwrap();
+        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
         let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        let contract_address: String = env::var("INFERENCE_REGISTRY_CONTRACT")
-            .unwrap()
-            .parse()
-            .unwrap();
-        InferenceRegistryContract::new(contract_address.parse::<Address>().unwrap(), signer)
+        InferenceRegistryContract::new(
+            AIZEL_CONFIG
+                .inference_registry_contract
+                .parse::<Address>()
+                .unwrap(),
+            signer,
+        )
     };
 }
 
