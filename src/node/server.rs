@@ -282,7 +282,7 @@ impl AizelInference {
             .arg("--n_threads_batch")
             .arg("-1")
             .arg("--port")
-            .arg(LLAMA_SERVER_PORT.into())
+            .arg::<String>(format!("{}", LLAMA_SERVER_PORT))
             .stdout(Stdio::from(llama_server_output))
             .stderr(Stdio::from(llama_server_error))
             .spawn()

@@ -43,13 +43,6 @@ pub struct AizelConfig {
     pub within_tee: bool,
     pub node_secret: Option<String>,
 }
-
-fn remove_invisible_chars(s: &str) -> String {
-    s.chars()
-     .filter(|c| c.is_ascii() && !c.is_control() )
-     .collect()
-}
-
 pub trait FromFile<T: DeserializeOwned> {
     fn from_file<P: AsRef<Path>>(path: P) -> Result<T, String> {
         let content: String = std::fs::read_to_string(path).map_err(|e| format!("can't read file: {:?}", e))?;

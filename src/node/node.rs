@@ -44,16 +44,18 @@ impl Node {
     pub async fn register(&self) -> Result<(), Error> {
         let tee_type = self.agent.get_tee_type().unwrap();
         let address = format!("http://{}", self.address.to_string());
-        Contract::register(
-            AIZEL_CONFIG.node_name.clone(),
-            AIZEL_CONFIG.node_bio.clone(),
-            address,
-            self.secret.name.encode(),
-            AIZEL_CONFIG.data_node_id,
-            tee_type as u32,
-            AIZEL_CONFIG.initial_stake,
-        )
-        .await?;
+        if !Contract::query_public_key_exist(self.secret.name.encode()).await? {
+            Contract::register(
+                AIZEL_CONFIG.node_name.clone(),
+                AIZEL_CONFIG.node_bio.clone(),
+                address,
+                self.secret.name.encode(),
+                AIZEL_CONFIG.data_node_id,
+                tee_type as u32,
+                AIZEL_CONFIG.initial_stake,
+            )
+            .await?;
+        }
 
         if AIZEL_CONFIG.within_tee {
             info!(

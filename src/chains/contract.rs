@@ -21,6 +21,7 @@ abigen!(
     r#"[
         function registerNode(string memory name,string memory bio,string memory url,string memory pubkey,uint256 dataNodeId,uint32 teeType) external payable returns (uint256 id)
         function getMinStake() external view returns (uint256)
+        function pubkeyExists(string calldata pubkey) public view returns (bool)
     ]"#,
 );
 
@@ -80,6 +81,13 @@ impl Contract {
             message: format!("failed to submit inference reuslt {}", e.to_string()),
         })?;
         Ok(())
+    }
+
+    pub async fn query_public_key_exist(public_key: String) -> Result<bool, Error> {
+        let exist: bool = INFERENCE_REGISTRY_CONTRACT.pubkey_exists(public_key).call().await.map_err(|e| Error::RegistrationError {
+            message: e.to_string(),
+        })?;
+        return Ok(exist)
     }
 }
 
