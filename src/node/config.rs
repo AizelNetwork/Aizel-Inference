@@ -2,7 +2,6 @@ use common::error::Error;
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
-use std::fs::File;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_BASE_PORT: u16 = 8080;
@@ -10,7 +9,7 @@ pub const DEFAULT_BASE_PORT: u16 = 8080;
 pub const NODE_KEY_FILENAME: &str = "node_key.json";
 pub const DEFAULT_ROOT_DIR: &str = "aizel";
 pub const DEFAULT_MODEL_DIR: &str = "models";
-pub const DEFAULT_AIZEL_CONFIG: &str = "aizel_config";
+pub const DEFAULT_AIZEL_CONFIG: &str = "aizel_config.yml";
 
 pub const DEFAULT_MODEL: &str = "llama2_7b_chat.Q4_0.gguf-1.0";
 
@@ -20,6 +19,8 @@ pub const OUTPUT_BUCKET: &str = "users-output";
 pub const REPORT_BUCKET: &str = "inference-report";
 
 pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
+
+pub const LLAMA_SERVER_PORT: u16 = 8888;
 
 #[derive(Deserialize, Debug)]
 pub struct AizelConfig {
@@ -43,13 +44,16 @@ pub struct AizelConfig {
     pub node_secret: Option<String>,
 }
 
+fn remove_invisible_chars(s: &str) -> String {
+    s.chars()
+     .filter(|c| c.is_ascii() && !c.is_control() )
+     .collect()
+}
+
 pub trait FromFile<T: DeserializeOwned> {
     fn from_file<P: AsRef<Path>>(path: P) -> Result<T, String> {
-        let file = File::options()
-            .read(true)
-            .open(path)
-            .map_err(|e| format!("can't open file {:?}", e))?;
-        serde_yaml::from_reader(file).map_err(|e| format!("can't deserialize file {:?}", e))
+        let content: String = std::fs::read_to_string(path).map_err(|e| format!("can't read file: {:?}", e))?;
+        serde_yaml::from_str(&content).map_err(|e| format!("can't deserialize file {:?}", e))
     }
 }
 
@@ -85,5 +89,6 @@ pub fn prepare_config() -> Result<AizelConfig, Error> {
 
 #[test]
 fn test_aizel_config() {
-    println!("{:?}", AizelConfig::from_file("./config.yml").unwrap());
+    println!("{:?}", AizelConfig::from_file("/home/jiangyi/aizel/aizel_config.yml").unwrap());
 }
+

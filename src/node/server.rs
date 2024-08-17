@@ -6,7 +6,7 @@ use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
 use super::config::{
     models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, INPUT_BUCKET,
-    MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET,
+    MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET, LLAMA_SERVER_PORT
 };
 use crate::chains::{
     contract::{Contract, WALLET},
@@ -76,7 +76,7 @@ impl AizelInference {
                     e
                 })
                 .unwrap();
-            std::env::set_var("OPENAI_API_BASE", "http://localhost:8000/v1");
+            std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
             while let Some(req) = rx.recv().await {
                 if req.model != current_model {
                     info!("change model from {} to {}", current_model, req.model);
@@ -281,6 +281,8 @@ impl AizelInference {
             .arg("-1")
             .arg("--n_threads_batch")
             .arg("-1")
+            .arg("--port")
+            .arg(LLAMA_SERVER_PORT.into())
             .stdout(Stdio::from(llama_server_output))
             .stderr(Stdio::from(llama_server_error))
             .spawn()

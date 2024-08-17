@@ -19,17 +19,13 @@ cargo build
 ## Deploy to Google Confidential Space
 1. Create GCP secrets in google secret manager
 ```shell
-gcloud secrets create wallet-sk --replication-policy="automatic"
-gcloud secrets create minio-user --replication-policy="automatic"
-gcloud secrets create minio-pwd --replication-policy="automatic"
+gcloud secrets create aizel-config --replication-policy="automatic"
 ```
 
 2. Upload secret to gcp secret manager
 ```shell
-echo -n "647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae" | gcloud secrets versions add wallet-sk --data-file=-
-echo -n "aizel_test" | gcloud secrets versions add minio-user --data-file=-
-echo -n "aizel_test_pwd" | gcloud secrets versions add minio-pwd --data-file=-
-
+aizel_config=$(base64 aizel_config.yml)
+echo -n $aizel_config | gcloud secrets versions add aizel-config --data-file=-
 ```
 3. Create a service account for the confidential space
 ```

@@ -125,15 +125,15 @@ lazy_static! {
 
 #[tokio::test]
 async fn query_url() {
-    env::set_var(
+    std::env::set_var(
         "ENDPOINT",
         "https://sepolia.infura.io/v3/250605a02ea74576bb2ab22f863a0ff8",
     );
-    env::set_var(
+    std::env::set_var(
         "DATA_REGISTRY_CONTRACT",
         "0x078ccaf6d3e1a3f37513158f4f944ef0936424a5",
     );
-    env::set_var("CHAIN_ID", "11155111");
+    std::env::set_var("CHAIN_ID", "11155111");
     let data_id: u64 = 1;
     let url: String = DATA_REGISTRY_CONTRACT
         .get_url(data_id.into())
