@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,15 +15,6 @@ import (
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
-
-type Config struct {
-	CHAIN_ID           string `json:"CHAIN_ID"`
-	ENDPOINT           string `json:"ENDPOINT"`
-	INFERENCE_CONTRACT string `json:"INFERENCE_CONTRACT"`
-	DATA_ADDRESS       string `json:"DATA_ADDRESS"`
-	GATE_ADDRESS       string `json:"GATE_ADDRESS"`
-	WALLET_SK          string `json:"WALLET_SK"`
-}
 
 func OnAliCloud() bool {
 	resp, err := http.Get("http://100.100.100.200/latest/meta-data/instance-id")
@@ -62,7 +54,18 @@ func GetSecret(skName string) {
 	if err != nil {
 		log.Fatalf("failed to get home dir: %v", err)
 	}
-	err = os.WriteFile(fmt.Sprintf("%s/%s", homeDir, skName), result.Payload.Data, 0644)
+	decodedData := make([]byte, base64.StdEncoding.DecodedLen(len(result.Payload.Data)))
+	_, err = base64.StdEncoding.Decode(decodedData, result.Payload.Data)
+	if err != nil {
+		log.Fatalf("failed to decode the payload data: %v", err)
+	}
+	printable := []byte{}
+	for _, b := range decodedData {
+		if (b >= 32 && b <= 126) || b == '\n' || b == '\r' || b == '\t' {
+			printable = append(printable, b)
+		}
+	}
+	err = os.WriteFile(fmt.Sprintf("%s/aizel/aizel_config.yml", homeDir), printable, 0644)
 	if err != nil {
 		log.Fatalf("failed to write secret to file %+v", err)
 	}
@@ -70,12 +73,7 @@ func GetSecret(skName string) {
 
 func main() {
 	if metadata.OnGCE() {
-		walletSk := "wallet-sk"
-		minioUser := "minio-user"
-		minioPassword := "minio-pwd"
-		GetSecret(walletSk)
-		GetSecret(minioUser)
-		GetSecret(minioPassword)
+		GetSecret("aizel-config")
 	} else if OnAliCloud() {
 		resp, err := http.Get("http://100.100.100.200/latest/meta-data/region-id")
 		if err != nil {
@@ -103,7 +101,7 @@ func main() {
 		}
 		log.Printf("%v", accessConfig)
 		bucketName := "aizel-tdx"
-		objectName := "tdx-data.json"
+		objectName := "aizel_config.yml"
 		client, err := oss.New(fmt.Sprintf("oss-%s.aliyuncs.com", regionId), accessConfig.AccessKeyID, accessConfig.AccessKeySecret, WithSecurityToken(accessConfig.SecurityToken))
 		if err != nil {
 			log.Fatalf("failed to create oss client: %v+", err)
@@ -124,18 +122,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to get home dir: %v", err)
 		}
-		err = os.WriteFile(fmt.Sprintf("%s/config", homeDir), data, 0644)
-		if err != nil {
-			log.Fatalf("failed to write secret to file %+v", err)
-		}
-
-		var config Config
-		err = json.Unmarshal(data, &config)
-		if err != nil {
-			log.Fatalf("failed to parse data: %v+", err)
-		}
-
-		err = os.WriteFile(fmt.Sprintf("%s/wallet-sk", homeDir), []byte(config.WALLET_SK), 0644)
+		err = os.WriteFile(fmt.Sprintf("%s/aizel/aizel_config.yml", homeDir), data, 0644)
 		if err != nil {
 			log.Fatalf("failed to write secret to file %+v", err)
 		}

@@ -1,4 +1,4 @@
-use secp256k1::{generate_keypair, rand::thread_rng};
+use secp256k1::{generate_keypair, rand::thread_rng, SecretKey as SecpSecretKey};
 use serde::{de, ser, Deserialize, Serialize};
 use std::fmt;
 /// Represents a public key (in bytes).
@@ -78,6 +78,13 @@ impl SecretKey {
             .try_into()
             .map_err(|_| hex::FromHexError::InvalidStringLength)?;
         Ok(Self(array))
+    }
+
+    pub fn public_key(&self) -> PublicKey {
+        let sk = SecpSecretKey::from_slice(&self.0).unwrap();
+        let secp = secp256k1::Secp256k1::new();
+        let pk = sk.public_key(&secp);
+        PublicKey(pk.serialize())
     }
 }
 

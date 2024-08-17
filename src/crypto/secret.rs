@@ -45,6 +45,15 @@ impl Secret {
         let (name, secret) = generate_secp256k_keypair();
         Self { name, secret }
     }
+
+    pub fn from_str(s: &str) -> Self {
+        let secret = SecretKey::decode(s).unwrap();
+        let name = secret.public_key();
+        Self {
+            name,
+            secret
+        }
+    }
 }
 
 impl Default for Secret {

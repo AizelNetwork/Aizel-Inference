@@ -177,7 +177,7 @@ impl MinioClient {
 
 #[tokio::test]
 async fn test_get_input() {
-    env::set_var("DATA_ADDRESS", "http://35.197.133.226:9112");
+    std::env::set_var("DATA_ADDRESS", "http://35.197.133.226:9112");
     let client = MinioClient::get();
     let input = client
         .get_inputs(
