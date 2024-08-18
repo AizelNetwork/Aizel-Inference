@@ -1,10 +1,9 @@
 use crate::error::Error;
 use crate::tee::TEEType;
-pub trait TEEVerifier {
-    fn verify(
-        &self,
-        report: String,
-        skip_verify_image_digest: bool,
-    ) -> impl std::future::Future<Output = Result<bool, Error>> + Send;
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait TEEVerifier: Send + Sync {
+    async fn verify(&self, report: String, skip_verify_image_digest: bool) -> Result<bool, Error>;
     fn get_type(&self) -> Result<TEEType, Error>;
 }
