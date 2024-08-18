@@ -18,3 +18,4 @@ common = { path = "../common" }
 intel-tee-quote-verification-rs = "0.3.0"
 intel-tee-quote-verification-sys = "0.2.1"
 hex = "0.4"
+async-trait = "0.1.81"

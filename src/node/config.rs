@@ -35,7 +35,6 @@ pub struct AizelConfig {
     pub minio_account: String,
     pub minio_password: String,
     pub data_node_id: u64,
-    pub data_node_url: Option<String>,
     // inference node configuration
     pub node_name: String,
     pub node_bio: String,
@@ -84,4 +83,3 @@ pub fn prepare_config() -> Result<AizelConfig, Error> {
 fn test_aizel_config() {
     println!("{:?}", AizelConfig::from_file("/home/jiangyi/aizel/aizel_config.yml").unwrap());
 }
-
