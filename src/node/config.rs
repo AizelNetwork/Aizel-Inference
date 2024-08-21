@@ -46,7 +46,8 @@ pub struct AizelConfig {
 }
 pub trait FromFile<T: DeserializeOwned> {
     fn from_file<P: AsRef<Path>>(path: P) -> Result<T, String> {
-        let content: String = std::fs::read_to_string(path).map_err(|e| format!("can't read file: {:?}", e))?;
+        let content: String =
+            std::fs::read_to_string(path).map_err(|e| format!("can't read file: {:?}", e))?;
         serde_yaml::from_str(&content).map_err(|e| format!("can't deserialize file {:?}", e))
     }
 }
@@ -83,5 +84,8 @@ pub fn prepare_config() -> Result<AizelConfig, Error> {
 
 #[test]
 fn test_aizel_config() {
-    println!("{:?}", AizelConfig::from_file("/home/jiangyi/aizel/aizel_config.yml").unwrap());
+    println!(
+        "{:?}",
+        AizelConfig::from_file("/home/jiangyi/aizel/aizel_config.yml").unwrap()
+    );
 }

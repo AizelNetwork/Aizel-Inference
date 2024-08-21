@@ -27,12 +27,8 @@ impl Node {
         fs::create_dir_all(root_dir()).unwrap();
         fs::create_dir_all(models_dir()).unwrap();
         let secret = match &AIZEL_CONFIG.node_secret {
-            Some(s) => {
-                Secret::from_str(s)
-            },
-            None => {
-                open_or_create_secret(node_key_path())?
-            }
+            Some(s) => Secret::from_str(s),
+            None => open_or_create_secret(node_key_path())?,
         };
         Ok(Node {
             address,

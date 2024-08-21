@@ -1,7 +1,6 @@
 use crate::chains::contract::Contract;
 use crate::node::config::AIZEL_CONFIG;
 use common::error::Error;
-use lazy_static::lazy_static;
 use log::{error, info};
 use minio::s3::{
     args::{
@@ -15,15 +14,15 @@ use minio::s3::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::OnceCell;
-use std::sync::Arc;
 
 // lazy_static! {
 //     static ref MINIO_CLIENT: MinioClient = MinioClient::new();
 // }
 
-static MINIO_CLIENT: OnceCell<Arc<MinioClient>> =  OnceCell::const_new();
+static MINIO_CLIENT: OnceCell<Arc<MinioClient>> = OnceCell::const_new();
 
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct UserInput {
@@ -48,7 +47,8 @@ pub struct MinioClient {
 
 impl MinioClient {
     async fn new() -> Self {
-        let data_node_url = Contract::query_data_node_url(AIZEL_CONFIG.data_node_id).await
+        let data_node_url = Contract::query_data_node_url(AIZEL_CONFIG.data_node_id)
+            .await
             .unwrap()
             .parse::<BaseUrl>()
             .unwrap();
@@ -189,7 +189,7 @@ async fn test_get_input() {
         .download_model(
             "models",
             "llama_2_7b.Q4_K_M.gguf-1.0",
-            &PathBuf::from("llama_2_7b.Q4_K_M.gguf-1.0")
+            &PathBuf::from("llama_2_7b.Q4_K_M.gguf-1.0"),
         )
         .await;
     println!("{:?}", input.unwrap());
