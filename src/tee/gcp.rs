@@ -29,10 +29,10 @@ async fn internal_get_report(nonce: String) -> Result<String, Error> {
     let custom_json = serde_json::to_string(&request).unwrap();
     let connector = UnixConnector;
     let client: Client<UnixConnector, Body> = Client::builder().build(connector);
-    let url = "http://localhost/v1/token";
+    let url = format!("{}{}", "http://localhost/v1/token", CONTAINER_LAUNCHER_SOCKET);
     let req = hyper::Request::builder()
         .method("POST")
-        .uri(Uri::new(CONTAINER_LAUNCHER_SOCKET, url))
+        .uri(&url)
         .body(Body::from(custom_json))
         .unwrap();
     let response = client

@@ -46,7 +46,7 @@ gcloud compute instances create inference-demo \
     --image-project=confidential-space-images \
     --image-family=confidential-space-debug \
     --service-account=991449629434-compute@developer.gserviceaccount.com \
-    --metadata="^~^tee-image-reference=asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0~tee-env-CHAIN_ID=4369~tee-env-ENDPOINT=http://34.124.144.235:9944~tee-env-PRIVATE_KEY=647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae~tee-env-INFERENCE_CONTRACT=0x5F9BAe82718B469721C6CD55D6Ab356dc5D60c5B~tee-container-log-redirect=true" \
+    --metadata="^~^tee-image-reference=asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.1.0~tee-container-log-redirect=true" \
     --machine-type=n2d-standard-16 \
     --min-cpu-platform="AMD Milan" \
     --boot-disk-size=50 \
@@ -61,8 +61,8 @@ gcloud compute instances create inference-demo \
 - Create a bucket to store the image
     - `aliyun oss mb oss://aizel-tdx -c cn-beijing -L oss-cn-beijing` 
 - Upload secrets and configs to oss
-    - modify the content in the `tdx-data.json` 
-    - upload the json file to the oss `aliyun oss cp tdx-data.json oss://aizel-tdx/tdx-data.json`
+    - modify the content in the `aizel_config.yml` 
+    - upload the configuration file to the oss `aliyun oss cp aizel_config.yml oss://aizel-tdx/aizel_config.yml`
 - Create a RAM role for alicloud deployment
     - `aliyun ram CreateRole --RoleName aizel-inference --Description "Role for Aizel Inference Node" --AssumeRolePolicyDocument "{\"Statement\": [{\"Action\": \"sts:AssumeRole\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": [\"ecs.aliyuncs.com\"]}}],\"Version\": \"1\"}"`
     - `aliyun ram AttachPolicyToRole --PolicyName AliyunOSSReadOnlyAccess --PolicyType System --RoleName aizel-inference`

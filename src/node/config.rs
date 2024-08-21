@@ -22,6 +22,8 @@ pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 
 pub const LLAMA_SERVER_PORT: u16 = 8888;
 
+pub const FACE_MODEL_SERVICE: &str = "http://localhost:8081/aizel/face/validate";
+
 #[derive(Deserialize, Debug)]
 pub struct AizelConfig {
     // contract configuration
