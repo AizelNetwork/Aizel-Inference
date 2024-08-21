@@ -1,11 +1,11 @@
 use super::gcp_claim::*;
+use async_trait::async_trait;
 use common::error::{Error, VerificationError};
 use common::tee::{verifier::TEEVerifier, TEEType};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Header, Validation};
 use log::error;
 use reqwest::Client;
 use url::Url;
-use async_trait::async_trait;
 /// This attestation verifier only works for GCP confidential space
 #[derive(Debug)]
 pub struct GcpVerifier {
@@ -103,8 +103,9 @@ impl GcpVerifier {
 #[async_trait]
 impl TEEVerifier for GcpVerifier {
     async fn verify(&self, report: String, skip_verify_image_digest: bool) -> Result<bool, Error> {
-        let header: Header = decode_header(&report).map_err(|e| {
-            Error::VerificationError { teetype: TEEType::GCP, error: VerificationError::DecodeError }
+        let header: Header = decode_header(&report).map_err(|e| Error::VerificationError {
+            teetype: TEEType::GCP,
+            error: VerificationError::DecodeError,
         })?;
         if header.alg != Algorithm::RS256 {
             return Err(Error::VerificationError {

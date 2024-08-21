@@ -5,8 +5,8 @@ mod aizel {
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
 use super::config::{
-    models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, INPUT_BUCKET,
-    MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET, LLAMA_SERVER_PORT, FACE_MODEL_SERVICE
+    models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, FACE_MODEL_SERVICE,
+    INPUT_BUCKET, LLAMA_SERVER_PORT, MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET,
 };
 use crate::chains::{
     contract::{Contract, WALLET},
@@ -17,6 +17,7 @@ use crate::crypto::elgamal::{Ciphertext, Elgamal};
 use crate::crypto::secret::Secret;
 use crate::s3_minio::client::MinioClient;
 use crate::tee::attestation::AttestationAgent;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use common::error::Error;
 use ethers::{
     core::{
@@ -29,15 +30,14 @@ use ethers::{
 use log::{error, info};
 use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
+use reqwest::multipart::{Form, Part};
 use secp256k1::{PublicKey, SecretKey};
+use serde::Deserialize;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::{fs, str::FromStr};
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::{Request, Response, Status};
-use base64::{engine::general_purpose::STANDARD, Engine};
-use reqwest::multipart::{Form, Part};
-use serde::Deserialize;
 pub struct AizelInference {
     pub secret: Secret,
     sender: Sender<InferenceRequest>,
@@ -88,17 +88,25 @@ impl AizelInference {
             while let Some(req) = rx.recv().await {
                 if req.model != current_model {
                     // process llama model
-                    if !AizelInference::check_model_exist(&models_dir(), &req.model).await.unwrap() {
+                    if !AizelInference::check_model_exist(&models_dir(), &req.model)
+                        .await
+                        .unwrap()
+                    {
                         let client = MinioClient::get().await;
                         match client
-                            .download_model(MODEL_BUCKET, &req.model, &models_dir().join(&req.model))
-                            .await {
-                                Ok(_) => {
-                                    info!("download model from data node {}", req.model);
-                                },
-                                Err(e) => {
-                                    error!("failed to downlaod model: {}", e.to_string());
-                                }
+                            .download_model(
+                                MODEL_BUCKET,
+                                &req.model,
+                                &models_dir().join(&req.model),
+                            )
+                            .await
+                        {
+                            Ok(_) => {
+                                info!("download model from data node {}", req.model);
+                            }
+                            Err(e) => {
+                                error!("failed to downlaod model: {}", e.to_string());
+                            }
                         }
                     }
                     info!("change model from {} to {}", current_model, req.model);
@@ -180,24 +188,26 @@ impl AizelInference {
                 let user_id = pubkey_to_address(&req.user_pk).unwrap();
 
                 let file_part = Part::bytes(image_data).mime_str("image/png").map_err(|_| {
-                    Error::InferenceError { message: "image format is not png".to_string() }
+                    Error::InferenceError {
+                        message: "image format is not png".to_string(),
+                    }
                 })?;
 
-                let form = Form::new()
-                .part("files", file_part)
-                .text("userId", user_id);
+                let form = Form::new().part("files", file_part).text("userId", user_id);
 
                 let client = reqwest::Client::new();
                 let response = client
                     .post(FACE_MODEL_SERVICE)
                     .multipart(form)
                     .send()
-                    .await.map_err(|e| {
-                        Error::InferenceError { message: format!("failed to validate face image {}", e.to_string()) }
+                    .await
+                    .map_err(|e| Error::InferenceError {
+                        message: format!("failed to validate face image {}", e.to_string()),
                     })?;
-                let resp: ModelServiceResponse = response.json().await.map_err(|e| {
-                    Error::InferenceError { message: format!("failed to parse response {}", e.to_string()) }
-                })?;
+                let resp: ModelServiceResponse =
+                    response.json().await.map_err(|e| Error::InferenceError {
+                        message: format!("failed to parse response {}", e.to_string()),
+                    })?;
                 if resp.data {
                     "true".to_string()
                 } else {
@@ -374,14 +384,10 @@ async fn test_load_llama_cpp_server() {
     // let model_path = "/home/jiangyi/aizel/models/llama2_7b_chat.Q4_0.gguf-1.0";
     let model_path = "llama2_7b_chat.Q4_0.gguf-1.0";
     let input = client
-        .download_model(
-            "models",
-            model_path,
-            &PathBuf::from(model_path)
-        )
+        .download_model("models", model_path, &PathBuf::from(model_path))
         .await;
     println!("finished {:?}", input.unwrap());
-    
+
     let mut child = AizelInference::run_llama_server(&PathBuf::from(model_path)).unwrap();
     child.wait();
 }

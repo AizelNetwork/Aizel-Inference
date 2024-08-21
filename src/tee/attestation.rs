@@ -80,7 +80,6 @@ pub async fn get_current_tee_type() -> Result<TEEType, Error> {
     });
 }
 
-
 #[tokio::test]
 async fn test_get_input() {
     println!("{}", get_current_tee_type().await.unwrap());

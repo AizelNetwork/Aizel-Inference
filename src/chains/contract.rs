@@ -84,10 +84,14 @@ impl Contract {
     }
 
     pub async fn query_public_key_exist(public_key: String) -> Result<bool, Error> {
-        let exist: bool = INFERENCE_REGISTRY_CONTRACT.pubkey_exists(public_key).call().await.map_err(|e| Error::RegistrationError {
-            message: e.to_string(),
-        })?;
-        return Ok(exist)
+        let exist: bool = INFERENCE_REGISTRY_CONTRACT
+            .pubkey_exists(public_key)
+            .call()
+            .await
+            .map_err(|e| Error::RegistrationError {
+                message: e.to_string(),
+            })?;
+        return Ok(exist);
     }
 }
 

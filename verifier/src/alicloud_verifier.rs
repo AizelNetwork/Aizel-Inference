@@ -1,10 +1,10 @@
+use async_trait::async_trait;
 use common::error::{Error, VerificationError};
 use common::tee::{verifier::TEEVerifier, TEEType, TEEType::AliCloud};
 use intel_tee_quote_verification_rs::*;
 use log::{info, warn};
 use std::mem;
 use std::time::{Duration, SystemTime};
-use async_trait::async_trait;
 
 #[cfg(debug_assertions)]
 const SGX_DEBUG_FLAG: i32 = 1;
@@ -19,8 +19,9 @@ impl AliCloudVerifier {}
 #[async_trait]
 impl TEEVerifier for AliCloudVerifier {
     async fn verify(&self, quote: String, skip_verify_image_digest: bool) -> Result<bool, Error> {
-        let quote = hex::decode(quote).map_err(|e| {
-            Error::VerificationError { teetype: AliCloud, error: VerificationError::DecodeError }
+        let quote = hex::decode(quote).map_err(|e| Error::VerificationError {
+            teetype: AliCloud,
+            error: VerificationError::DecodeError,
         })?;
         ecdsa_quote_verification(&quote, false)?;
         return Ok(true);

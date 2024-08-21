@@ -49,10 +49,7 @@ impl Secret {
     pub fn from_str(s: &str) -> Self {
         let secret = SecretKey::decode(s).unwrap();
         let name = secret.public_key();
-        Self {
-            name,
-            secret
-        }
+        Self { name, secret }
     }
 }
 
