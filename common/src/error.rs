@@ -37,6 +37,8 @@ pub enum Error {
 
 #[derive(Error, Debug)]
 pub enum VerificationError {
+    #[error("DecodeError ")]
+    DecodeError,
     #[error("KidNotFoundError {kid}")]
     KidNotFoundError { kid: String },
     #[error("SigAlgMismatchError {algorithm}")]

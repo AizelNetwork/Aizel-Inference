@@ -76,6 +76,7 @@ name = "aizel_inference"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "base64 0.22.1",
  "chrono",
  "clap 4.5.4",
  "common",

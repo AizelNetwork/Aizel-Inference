@@ -103,7 +103,9 @@ impl GcpVerifier {
 #[async_trait]
 impl TEEVerifier for GcpVerifier {
     async fn verify(&self, report: String, skip_verify_image_digest: bool) -> Result<bool, Error> {
-        let header: Header = decode_header(&report).unwrap();
+        let header: Header = decode_header(&report).map_err(|e| {
+            Error::VerificationError { teetype: TEEType::GCP, error: VerificationError::DecodeError }
+        })?;
         if header.alg != Algorithm::RS256 {
             return Err(Error::VerificationError {
                 teetype: TEEType::GCP,

@@ -6,7 +6,7 @@ use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
 use super::config::{
     models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, INPUT_BUCKET,
-    MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET, LLAMA_SERVER_PORT
+    MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET, LLAMA_SERVER_PORT, FACE_MODEL_SERVICE
 };
 use crate::chains::{
     contract::{Contract, WALLET},
@@ -35,10 +35,19 @@ use std::process::{Child, Command, Stdio};
 use std::{fs, str::FromStr};
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::{Request, Response, Status};
-
+use base64::{engine::general_purpose::STANDARD, Engine};
+use reqwest::multipart::{Form, Part};
+use serde::Deserialize;
 pub struct AizelInference {
     pub secret: Secret,
     sender: Sender<InferenceRequest>,
+}
+
+#[derive(Deserialize, Debug)]
+struct ModelServiceResponse {
+    pub code: u16,
+    pub msg: String,
+    pub data: bool,
 }
 
 #[tonic::async_trait]
@@ -76,9 +85,22 @@ impl AizelInference {
                     e
                 })
                 .unwrap();
-            std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
             while let Some(req) = rx.recv().await {
                 if req.model != current_model {
+                    // process llama model
+                    if !AizelInference::check_model_exist(&models_dir(), &req.model).await.unwrap() {
+                        let client = MinioClient::get().await;
+                        match client
+                            .download_model(MODEL_BUCKET, &req.model, &models_dir().join(&req.model))
+                            .await {
+                                Ok(_) => {
+                                    info!("download model from data node {}", req.model);
+                                },
+                                Err(e) => {
+                                    error!("failed to downlaod model: {}", e.to_string());
+                                }
+                        }
+                    }
                     info!("change model from {} to {}", current_model, req.model);
                     match child.kill() {
                         Err(e) => error!("failed to kill llama server {}", e.to_string()),
@@ -115,7 +137,7 @@ impl AizelInference {
         agent: &AttestationAgent,
     ) -> Result<(), Error> {
         let model = req.model.clone();
-        let client = MinioClient::get();
+        let client: std::sync::Arc<MinioClient> = MinioClient::get().await;
         let user_input = client.get_inputs(INPUT_BUCKET, &req.input).await?;
         let decrypted_input = AizelInference::decrypt(&secret, user_input.input)?;
 
@@ -151,14 +173,38 @@ impl AizelInference {
                     decrypted_input, from, signature
                 )
             }
-            _ => {
-                // process llama model
-                if !AizelInference::check_model_exist(&models_dir(), &model).await? {
-                    info!("download models from data node {}", model);
-                    let _ = client
-                        .download_model(MODEL_BUCKET, &model, &models_dir().join(&model))
-                        .await?;
+            "Auth-1.0" => {
+                let file = decrypted_input.clone();
+                let base64_encoded = file.split(',').last().unwrap_or_default();
+                let image_data = STANDARD.decode(base64_encoded).unwrap();
+                let user_id = pubkey_to_address(&req.user_pk).unwrap();
+
+                let file_part = Part::bytes(image_data).mime_str("image/png").map_err(|_| {
+                    Error::InferenceError { message: "image format is not png".to_string() }
+                })?;
+
+                let form = Form::new()
+                .part("files", file_part)
+                .text("userId", user_id);
+
+                let client = reqwest::Client::new();
+                let response = client
+                    .post(FACE_MODEL_SERVICE)
+                    .multipart(form)
+                    .send()
+                    .await.map_err(|e| {
+                        Error::InferenceError { message: format!("failed to validate face image {}", e.to_string()) }
+                    })?;
+                let resp: ModelServiceResponse = response.json().await.map_err(|e| {
+                    Error::InferenceError { message: format!("failed to parse response {}", e.to_string()) }
+                })?;
+                if resp.data {
+                    "true".to_string()
+                } else {
+                    "false".to_string()
                 }
+            }
+            _ => {
                 let client = OpenAIClient::new(String::new());
                 let req = ChatCompletionRequest::new(
                     String::new(),
@@ -204,6 +250,14 @@ impl AizelInference {
             let report = agent
                 .get_attestation_report(output_hash.to_string())
                 .await?;
+            let report_hash = AizelInference::hash(&report);
+            let _ = client
+                .upload(REPORT_BUCKET, &report_hash.to_string(), report.as_bytes())
+                .await?;
+            let _ =
+                Contract::submit_inference(req.request_id, output_hash.0, report_hash.0).await?;
+        } else {
+            let report = "mock report".to_string();
             let report_hash = AizelInference::hash(&report);
             let _ = client
                 .upload(REPORT_BUCKET, &report_hash.to_string(), report.as_bytes())
@@ -270,6 +324,7 @@ impl AizelInference {
     pub fn run_llama_server(model_path: &PathBuf) -> Result<Child, Error> {
         let llama_server_output = fs::File::create(root_dir().join("llama_stdout.txt")).unwrap();
         let llama_server_error = fs::File::create(root_dir().join("llama_stderr.txt")).unwrap();
+        info!("llama server model path {}", model_path.to_str().unwrap());
         let child: Child = Command::new("python3")
             .arg("-m")
             .arg("llama_cpp.server")
@@ -311,4 +366,22 @@ async fn test_openai_client() {
     let result = client.chat_completion(req).await.unwrap();
     println!("Content: {:?}", result.choices[0].message.content);
     println!("Response Headers: {:?}", result.headers);
+}
+
+#[tokio::test]
+async fn test_load_llama_cpp_server() {
+    let client = MinioClient::get().await;
+    // let model_path = "/home/jiangyi/aizel/models/llama2_7b_chat.Q4_0.gguf-1.0";
+    let model_path = "llama2_7b_chat.Q4_0.gguf-1.0";
+    let input = client
+        .download_model(
+            "models",
+            model_path,
+            &PathBuf::from(model_path)
+        )
+        .await;
+    println!("finished {:?}", input.unwrap());
+    
+    let mut child = AizelInference::run_llama_server(&PathBuf::from(model_path)).unwrap();
+    child.wait();
 }

@@ -19,7 +19,9 @@ impl AliCloudVerifier {}
 #[async_trait]
 impl TEEVerifier for AliCloudVerifier {
     async fn verify(&self, quote: String, skip_verify_image_digest: bool) -> Result<bool, Error> {
-        let quote = hex::decode(quote).unwrap();
+        let quote = hex::decode(quote).map_err(|e| {
+            Error::VerificationError { teetype: AliCloud, error: VerificationError::DecodeError }
+        })?;
         ecdsa_quote_verification(&quote, false)?;
         return Ok(true);
     }

@@ -122,7 +122,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to get home dir: %v", err)
 		}
-		err = os.WriteFile(fmt.Sprintf("%s/aizel/aizel_config.yml", homeDir), data, 0644)
+		err = os.WriteFile(fmt.Sprintf("%s/aizel/aizel_config.yml", homeDir), data, 0600)
 		if err != nil {
 			log.Fatalf("failed to write secret to file %+v", err)
 		}

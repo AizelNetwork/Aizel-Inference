@@ -16,10 +16,14 @@ use minio::s3::{
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Instant;
+use tokio::sync::OnceCell;
+use std::sync::Arc;
 
-lazy_static! {
-    static ref MINIO_CLIENT: MinioClient = MinioClient::new();
-}
+// lazy_static! {
+//     static ref MINIO_CLIENT: MinioClient = MinioClient::new();
+// }
+
+static MINIO_CLIENT: OnceCell<Arc<MinioClient>> =  OnceCell::const_new();
 
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct UserInput {
@@ -32,16 +36,19 @@ impl UserInput {
         format!("{}-{}", self.user, self.input)
     }
 }
+
+async fn initialize() -> Arc<MinioClient> {
+    Arc::new(MinioClient::new().await)
+}
+
 #[derive(Debug)]
 pub struct MinioClient {
     pub client: Client,
 }
 
 impl MinioClient {
-    fn new() -> Self {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let data_node_url = rt
-            .block_on(Contract::query_data_node_url(AIZEL_CONFIG.data_node_id))
+    async fn new() -> Self {
+        let data_node_url = Contract::query_data_node_url(AIZEL_CONFIG.data_node_id).await
             .unwrap()
             .parse::<BaseUrl>()
             .unwrap();
@@ -55,8 +62,8 @@ impl MinioClient {
         MinioClient { client }
     }
 
-    pub fn get<'a>() -> &'a Self {
-        &MINIO_CLIENT
+    pub async fn get() -> Arc<MinioClient> {
+        MINIO_CLIENT.get_or_init(initialize).await.clone()
     }
 
     pub async fn get_inputs(
@@ -177,12 +184,12 @@ impl MinioClient {
 
 #[tokio::test]
 async fn test_get_input() {
-    std::env::set_var("DATA_ADDRESS", "http://35.197.133.226:9112");
-    let client = MinioClient::get();
+    let client = MinioClient::get().await;
     let input = client
-        .get_inputs(
-            "users-output",
-            "0x34ee5d5e212beedbd5f45ff352bffc82dd356ff03e830272a44ab976f4a421bc",
+        .download_model(
+            "models",
+            "llama_2_7b.Q4_K_M.gguf-1.0",
+            &PathBuf::from("llama_2_7b.Q4_K_M.gguf-1.0")
         )
         .await;
     println!("{:?}", input.unwrap());

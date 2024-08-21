@@ -71,9 +71,9 @@ impl Node {
     }
 
     pub async fn run_server(&self) -> Result<(), Error> {
-        let aizel_inference_service = AizelInference::new(self.secret.clone());
+        std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
         if !AizelInference::check_model_exist(&models_dir(), DEFAULT_MODEL).await? {
-            let client = MinioClient::get();
+            let client = MinioClient::get().await;
             client
                 .download_model(
                     MODEL_BUCKET,
@@ -82,6 +82,7 @@ impl Node {
                 )
                 .await?;
         }
+        let aizel_inference_service = AizelInference::new(self.secret.clone());
         self.register().await?;
 
         let mut listen_addr = self.address.clone();
