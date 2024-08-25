@@ -1,5 +1,4 @@
-docker-compose.yml
-JWTToken
-README.me
-resp.json
-redeploy.sh
+README.md
+.idea
+aizel-face-recognition.jar
+aizel-face-recognition.zip

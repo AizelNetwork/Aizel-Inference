@@ -86,38 +86,40 @@ impl AizelInference {
                 })
                 .unwrap();
             while let Some(req) = rx.recv().await {
-                if req.model != current_model {
-                    // process llama model
-                    if !AizelInference::check_model_exist(&models_dir(), &req.model)
-                        .await
-                        .unwrap()
-                    {
-                        let client = MinioClient::get().await;
-                        match client
-                            .download_model(
-                                MODEL_BUCKET,
-                                &req.model,
-                                &models_dir().join(&req.model),
-                            )
+                if req.model != "Agent-1.0" && req.model != "Auth-1.0" {
+                    if req.model != current_model {
+                        // process llama model
+                        if !AizelInference::check_model_exist(&models_dir(), &req.model)
                             .await
+                            .unwrap()
                         {
-                            Ok(_) => {
-                                info!("download model from data node {}", req.model);
-                            }
-                            Err(e) => {
-                                error!("failed to downlaod model: {}", e.to_string());
+                            let client = MinioClient::get().await;
+                            match client
+                                .download_model(
+                                    MODEL_BUCKET,
+                                    &req.model,
+                                    &models_dir().join(&req.model),
+                                )
+                                .await
+                            {
+                                Ok(_) => {
+                                    info!("download model from data node {}", req.model);
+                                }
+                                Err(e) => {
+                                    error!("failed to downlaod model: {}", e.to_string());
+                                }
                             }
                         }
-                    }
-                    info!("change model from {} to {}", current_model, req.model);
-                    match child.kill() {
-                        Err(e) => error!("failed to kill llama server {}", e.to_string()),
-                        Ok(()) => {
-                            child.wait().unwrap();
-                            child =
-                                AizelInference::run_llama_server(&models_dir().join(&req.model))
-                                    .unwrap();
-                            current_model = req.model.clone();
+                        info!("change model from {} to {}", current_model, req.model);
+                        match child.kill() {
+                            Err(e) => error!("failed to kill llama server {}", e.to_string()),
+                            Ok(()) => {
+                                child.wait().unwrap();
+                                child =
+                                    AizelInference::run_llama_server(&models_dir().join(&req.model))
+                                        .unwrap();
+                                current_model = req.model.clone();
+                            }
                         }
                     }
                 }
