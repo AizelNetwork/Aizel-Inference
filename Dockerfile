@@ -58,9 +58,8 @@ RUN apt-get update && apt-get -y install libtdx-attest ntpdate strace libgomp1 &
 RUN  mkdir -p /export/App/rank/
 RUN  mkdir -p /export/App/rank/aizel-face-model-service
 RUN  mkdir -p /export/Logs/spring-boot-admin/
-COPY ./aizel-face-recognition-1.0-SNAPSHOT.jar /export/App/rank/app.jar
 COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
-
+COPY ./aizel-face-recognition/target/aizel-face-recognition/ /export/App/rank
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
@@ -69,6 +68,5 @@ COPY --from=builder /python /python
 COPY --from=builder /python3.7 /python3.7
 COPY ./script/bootstrap.sh bootstrap.sh
 RUN mkdir /root/aizel
-# LABEL "tee.launch_policy.allow_env_override"="ENDPOINT,CHAIN_ID,PRIVATE_KEY,INFERENCE_CONTRACT,INFERENCE_REGISTRY_CONTRACT,DATA_REGISTRY_CONTRACT,DATA_NODE_ID,INITAIL_STAKE_AMOUNT"
 EXPOSE 8080
 ENTRYPOINT ["/bin/bash", "bootstrap.sh"]

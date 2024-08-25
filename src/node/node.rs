@@ -39,6 +39,14 @@ impl Node {
 
     pub async fn register(&self) -> Result<(), Error> {
         let tee_type = self.agent.get_tee_type().unwrap();
+        if AIZEL_CONFIG.within_tee {
+            info!(
+                "attestation report {}",
+                self.agent
+                    .get_attestation_report(self.secret.name.encode())
+                    .await?
+            );
+        }
         let address = format!("http://{}", self.address.to_string());
         if !Contract::query_public_key_exist(self.secret.name.encode()).await? {
             Contract::register(
@@ -51,15 +59,6 @@ impl Node {
                 AIZEL_CONFIG.initial_stake,
             )
             .await?;
-        }
-
-        if AIZEL_CONFIG.within_tee {
-            info!(
-                "attestation report {}",
-                self.agent
-                    .get_attestation_report(self.secret.name.encode())
-                    .await?
-            );
         }
 
         info!("successfully registered");

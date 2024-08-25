@@ -1,14 +1,14 @@
 ---
-chain_id: 11155111
-endpoint: https://sepolia.infura.io/v3/250605a02ea74576bb2ab22f863a0ff8
-inference_contract: 0xC6ec24f04dc485c7Feb7588b38e81575dA27b811
-inference_registry_contract: 0xFAE7F21E10550C8a1264e297d880E25060E615b4
-data_registry_contract: 0x078ccaf6d3e1a3f37513158f4f944ef0936424a5
+chain_id: 1281
+endpoint: http://34.124.144.235:9944
+inference_contract: 0x635Ca0FA41caBDB3784336c5551AA4b9cA140a46
+inference_registry_contract: 0x65868c77B1073326c509e9Da899686F39c7016bb
+data_registry_contract: 0xc837ebaE9D029c8Bb731F7E60F18e0a83911667c
 minio_account: aizel_admin_key
 minio_password: aizel_admin_pwd
 node_name: test_node
 node_bio: test_bio
-data_node_id: 1
-initial_stake: 100
+data_node_id: 0
+initial_stake: 200000000000
 wallet_sk: 0x647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae
-within_tee: false
+within_tee: true
