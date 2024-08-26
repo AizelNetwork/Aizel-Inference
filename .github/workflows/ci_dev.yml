@@ -47,9 +47,8 @@ jobs:
           project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-action/providers/github-actions-oidc
 
-      - name: Connect to Artifact Registry
-        run: |-
-          echo ${{ steps.auth.outputs.access_token }} | docker login -u oauth2accesstoken --password-stdin https://${{ env.REPOSITORY_REGION }}-docker.pkg.dev
+      - name: Login to Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REPOSITORY_REGION }}-docker.pkg.dev
 
       - name: Create image tag
         run: echo "IMAGE_TAG=${{ env.REPOSITORY_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ env.IMAGE_VERSION }}" >> $GITHUB_ENV
