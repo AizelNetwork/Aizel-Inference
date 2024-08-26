@@ -33,17 +33,16 @@ jobs:
 
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Checkout submodules
         run: git submodule update --init --recursive
 
       - id: 'auth'
         name: 'Obtain access token by using workload identity federation'
-        uses: 'google-github-actions/auth@v0'
+        uses: 'google-github-actions/auth@v2'
         with:
-          create_credentials_file: true
-          token_format: access_token
+          project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions/providers/github-actions-oidc
           service_account: github-actions-workflow@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
 
