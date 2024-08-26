@@ -30,7 +30,9 @@ jobs:
   push_to_registry:
     name: Push Docker image to Docker Hub
     runs-on: self-hosted
-
+    permissions:
+     contents: 'read'
+     id-token: 'write'
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
