@@ -54,7 +54,7 @@ jobs:
         run: echo "IMAGE_TAG=${{ env.REPOSITORY_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ env.IMAGE_VERSION }}" >> $GITHUB_ENV
 
       - name: Create Submodule Build Image
-        run: docker build --tag "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" ./aizel-face-recognition
+        run: docker build --tag "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" -f ./aizel-face-recognition/Dockerfile.build ./aizel-face-recognition
 
       - name: Build Submodule
         run: docker run --rm --name aizel_face_recognition_build -v ./aizel-face-recognition:/root/aizel-face-recognition "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-face-recognition && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
