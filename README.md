@@ -175,37 +175,27 @@ apt-get update && apt-get install libsgx-dcap-quote-verify-dev libsgx-dcap-defau
 ## Github Action
 1. Create a workload identity pool and provider.
 ```
-gcloud iam workload-identity-pools providers create-oidc github-actions-oidc \
-    --location="global" \
-    --workload-identity-pool=github-actions \
-    --issuer-uri="https://token.actions.githubusercontent.com/" \
-    --attribute-mapping="google.subject=assertion.sub"
+gcloud iam workload-identity-pools create github-action \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --display-name="GitHub Actions Pool"
 
 gcloud iam workload-identity-pools providers create-oidc github-actions-oidc \
-    --location="global" \
-    --workload-identity-pool=github-actions \
-    --issuer-uri="https://token.actions.githubusercontent.com/" \
-    --attribute-mapping="google.subject=assertion.sub"
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --workload-identity-pool=github-action \
+  --display-name="GitHub Repository Provider" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
+  --attribute-condition="assertion.repository_owner == '${GITHUB_ORG}'" \
+  --issuer-uri="https://token.actions.githubusercontent.com"
 ```
 
-2. Create a service account and grant `roles/artifactregistry.writer` to the service account.
+2. Grant the provider with artifact registry writer role.
 ```
-SERVICE_ACCOUNT=$(gcloud iam service-accounts create github-actions-workflow \
-  --display-name "GitHub Actions workflow" \
-  --format "value(email)")
+gcloud artifacts repositories add-iam-policy-binding aizel \
+  --project="${PROJECT_ID}" \
+  --role="roles/artifactregistry.writer" \
+  --location=asial \
+  --member="principalSet://iam.googleapis.com/projects/991449629434/locations/global/workloadIdentityPools/github-action/attribute.repository/AizelNetwork/AizelInference"
 
-gcloud projects add-iam-policy-binding $(gcloud config get-value core/project) \
-  --member serviceAccount:$SERVICE_ACCOUNT \
-  --role roles/artifactregistry.writer
 ```
-
-3. Allow github action to use service account
-```
-SUBJECT=repo:WillJiang1/dotnet-docs-samples:ref:refs/heads/main
-
-PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value core/project) --format='value(projectNumber)')
-gcloud iam service-accounts add-iam-policy-binding $SERVICE_ACCOUNT \
-  --role=roles/iam.workloadIdentityUser \
-  --member="principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions/subject/$SUBJECT"
-```
-
