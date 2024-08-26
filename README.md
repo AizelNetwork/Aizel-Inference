@@ -171,3 +171,41 @@ apt-get update && apt-get install libsgx-dcap-quote-verify-dev libsgx-dcap-defau
 
 2. Run the test case
     - change the pccs_url in `/etc/sgx_default_qcnl.conf`, `"pccs_url": "https://sgx-dcap-server.cn-beijing.aliyuncs.com/sgx/certification/v4/"`
+
+
+## Github Action
+1. Create a workload identity pool and provider.
+```
+gcloud iam workload-identity-pools providers create-oidc github-actions-oidc \
+    --location="global" \
+    --workload-identity-pool=github-actions \
+    --issuer-uri="https://token.actions.githubusercontent.com/" \
+    --attribute-mapping="google.subject=assertion.sub"
+
+gcloud iam workload-identity-pools providers create-oidc github-actions-oidc \
+    --location="global" \
+    --workload-identity-pool=github-actions \
+    --issuer-uri="https://token.actions.githubusercontent.com/" \
+    --attribute-mapping="google.subject=assertion.sub"
+```
+
+2. Create a service account and grant `roles/artifactregistry.writer` to the service account.
+```
+SERVICE_ACCOUNT=$(gcloud iam service-accounts create github-actions-workflow \
+  --display-name "GitHub Actions workflow" \
+  --format "value(email)")
+
+gcloud projects add-iam-policy-binding $(gcloud config get-value core/project) \
+  --member serviceAccount:$SERVICE_ACCOUNT \
+  --role roles/artifactregistry.writer
+```
+
+3. Allow github action to use service account
+```
+SUBJECT=repo:WillJiang1/dotnet-docs-samples:ref:refs/heads/main
+
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value core/project) --format='value(projectNumber)')
+gcloud iam service-accounts add-iam-policy-binding $SERVICE_ACCOUNT \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions/subject/$SUBJECT"
+```
