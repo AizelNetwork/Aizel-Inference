@@ -19,10 +19,10 @@ env:
   PROJECT_NUMBER: 991449629434
 
   REPOSITORY: aizel
-  REPOSITORY_REGION: aisal
+  REPOSITORY_REGION: asia
 
   IMAGE: aizel_inference
-  IMAGE_VESION: 0.0.1
+  IMAGE_VERSION: 0.0.1
 
   SUBMODULE_BUILD_IMAGE_TAG: aizel-face-recognition-build:0.0.1
   
@@ -40,12 +40,12 @@ jobs:
       - name: Checkout submodules
         run: git submodule update --init --recursive
 
-      - id: 'auth'
-        name: 'Obtain access token by using workload identity federation'
-        uses: 'google-github-actions/auth@v2'
-        with:
-          project_id: ${{ env.PROJECT_ID }}
-          workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-action/providers/github-actions-oidc
+      # - id: 'auth'
+      #   name: 'Obtain access token by using workload identity federation'
+      #   uses: 'google-github-actions/auth@v2'
+      #   with:
+      #     project_id: ${{ env.PROJECT_ID }}
+      #     workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-action/providers/github-actions-oidc
 
       - name: Login to Artifact Registry
         run: gcloud auth configure-docker ${{ env.REPOSITORY_REGION }}-docker.pkg.dev
@@ -57,7 +57,7 @@ jobs:
         run: docker build --tag "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" -f ./aizel-face-recognition/Dockerfile.build ./aizel-face-recognition
 
       - name: Build Submodule
-        run: docker run --rm --name aizel_face_recognition_build -v ./aizel-face-recognition:/root/aizel-face-recognition "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-face-recognition && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
+        run: docker run --rm --name aizel_face_recognition_build -v ./aizel-face-recognition:/root/aizel-face-recognition -v /opt/.m2:/root/m2 "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-face-recognition && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
 
       - name: Build and push
         uses: docker/build-push-action@v6
