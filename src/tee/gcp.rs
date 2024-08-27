@@ -10,7 +10,6 @@ use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 use tokio::net::UnixStream;
-use log::info;
 use tokio::spawn;
 const _CONTAINER_RUNTIME_MOUNT_PATH: &'static str = "/run/container_launcher/";
 const _ATTESTATION_VERIFIER_TOKEN_FILENAME: &'static str = "attestation_verifier_claims_token";
