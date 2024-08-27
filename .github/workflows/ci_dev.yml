@@ -57,7 +57,7 @@ jobs:
         run: docker build --tag "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" -f ./aizel-face-recognition/Dockerfile.build ./aizel-face-recognition
 
       - name: Delete Old target
-        run: rm -rf ./aizel-face-recognition/target
+        run: docker run --rm -v ./aizel-face-recognition:/root/aizel-face-recognition "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" rm -rf /root/aizel-face-recognition/target
 
       - name: Build Submodule
         run: docker run --rm --name aizel_face_recognition_build -v ./aizel-face-recognition:/root/aizel-face-recognition -v /opt/.m2:/root/.m2 "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-face-recognition && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
@@ -70,6 +70,7 @@ jobs:
           context: .
 
   deploy_gcp_cs:
+    needs: push_to_registry
     name: Deploy Aizel Inference to GCP confidential space
     runs-on: self-hosted
     steps:
