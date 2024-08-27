@@ -10,7 +10,7 @@ use crate::{
     tee::attestation::AttestationAgent,
 };
 use common::error::Error;
-use log::info;
+use log::{info, error};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -27,7 +27,17 @@ impl Node {
         fs::create_dir_all(root_dir()).unwrap();
         fs::create_dir_all(models_dir()).unwrap();
         let secret = match &AIZEL_CONFIG.node_secret {
-            Some(s) => Secret::from_str(s),
+            Some(s) => {
+                if s.len() != 64 || s.len() != 66 {
+                    error!("the secret length is not 64 or 66, please input correct node secret in your aizel_config.yml file");
+                    return Err(Error::InvalidArgumentError { argument: "node secret".to_string(), message: "the secret length is not 64 or 66, please input correct node secret in your aizel_config.yml file".to_string() });
+                }
+                if s.len() == 66 {
+                    Secret::from_str(&s[2..])
+                } else {
+                    Secret::from_str(s)
+                }
+            }
             None => open_or_create_secret(node_key_path())?,
         };
         Ok(Node {
