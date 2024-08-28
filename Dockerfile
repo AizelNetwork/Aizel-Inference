@@ -59,7 +59,7 @@ RUN  mkdir -p /export/App/rank/
 RUN  mkdir -p /export/App/rank/aizel-face-model-service
 RUN  mkdir -p /export/Logs/spring-boot-admin/
 COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
-COPY ./aizel-face-recognition/target/aizel-face-recognition/ /export/App/rank
+COPY ./aizel-face-recognition/target/aizel-face-recognition /export/App/rank/aizel-face-recognition 
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
