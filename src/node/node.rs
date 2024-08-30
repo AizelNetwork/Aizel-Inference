@@ -1,16 +1,16 @@
 use super::aizel::inference_server::InferenceServer;
 use super::{
-    config::{models_dir, node_key_path, root_dir, AIZEL_CONFIG, DEFAULT_MODEL, MODEL_BUCKET},
+    config::{models_dir, node_key_path, root_dir, AIZEL_CONFIG, MODEL_BUCKET},
     server::AizelInference,
 };
-use crate::chains::contract::Contract;
+use crate::chains::contract::{Contract, ModelInfo};
 use crate::s3_minio::client::MinioClient;
 use crate::{
     crypto::secret::{Export, Secret},
     tee::attestation::AttestationAgent,
 };
 use common::error::Error;
-use log::{info, error};
+use log::{error, info, warn};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -69,25 +69,41 @@ impl Node {
                 AIZEL_CONFIG.initial_stake,
             )
             .await?;
+            info!("successfully registered");
+        } else {
+            info!("already registerd")
         }
-
-        info!("successfully registered");
         Ok(())
+    }
+
+    async fn prepare_model(&self) -> Result<Option<ModelInfo>, Error> {
+        let model_info = Contract::query_data_node_default_model(AIZEL_CONFIG.data_node_id).await?;
+        match model_info {
+            Some(m) => {
+                info!("data node {} has default model : {:?}",AIZEL_CONFIG.data_node_id,  &m);
+                if !AizelInference::check_model_exist(&models_dir(), &m.name).await? {
+                    let client = MinioClient::get().await;
+                    client
+                        .download_model(
+                            MODEL_BUCKET,
+                            &m.cid,
+                            &models_dir().join(&m.name),
+                        )
+                        .await?;
+                }
+                Ok(Some(m))
+            },
+            None => {
+                warn!("data node doesn't have any models");
+                Ok(None)
+            }
+        }
     }
 
     pub async fn run_server(&self) -> Result<(), Error> {
         std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
-        if !AizelInference::check_model_exist(&models_dir(), DEFAULT_MODEL).await? {
-            let client = MinioClient::get().await;
-            client
-                .download_model(
-                    MODEL_BUCKET,
-                    DEFAULT_MODEL,
-                    &models_dir().join(DEFAULT_MODEL),
-                )
-                .await?;
-        }
-        let aizel_inference_service = AizelInference::new(self.secret.clone());
+        let default_model_info = self.prepare_model().await?;
+        let aizel_inference_service = AizelInference::new(self.secret.clone(), default_model_info);
         self.register().await?;
 
         let mut listen_addr = self.address.clone();

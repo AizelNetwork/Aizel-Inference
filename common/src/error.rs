@@ -33,6 +33,8 @@ pub enum Error {
     DownloadingModelError { model: String, message: String },
     #[error("InvalidArgumentError: '{argument}': {message}")]
     InvalidArgumentError { argument: String, message: String },
+    #[error("ContractError: 'message'")]
+    ContractError { message: String },
 }
 
 #[derive(Error, Debug)]

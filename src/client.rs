@@ -1,5 +1,5 @@
 use aizel::inference_client::InferenceClient;
-use aizel::InferenceRequest;
+use aizel::{InferenceRequest, InferenceType};
 pub mod aizel {
     tonic::include_proto!("aizel"); // The string specified here must match the proto package name
 }
@@ -44,8 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request = tonic::Request::new(InferenceRequest {
         request_id: 0,
         input: "hello ".to_string(),
-        model: String::new(),
+        model_id: 0,
         user_pk: String::new(),
+        inference_type: InferenceType::Llama.into(),
     });
     let response = client.llama_inference(request).await?;
     let _ = response.into_inner();

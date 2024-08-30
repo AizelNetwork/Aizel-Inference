@@ -2,12 +2,22 @@ syntax = "proto3";
 
 package aizel;
 
+enum InferenceType {
+    llama = 0;
+    face_add_vector = 1;
+    face_validate = 2;
+    face_live_detection = 3;
+    face_get_avatar = 4;
+    auto_transfer = 5;
+}
+
 // InferenceRequest is the request for inference.
 message InferenceRequest {
     uint64 request_id = 1;
-    string model = 2;
+    uint64 model_id = 2;
     string input = 3;
     string user_pk = 4;
+    InferenceType inference_type = 5;
 }
 
 // InferenceResponse is the response for inference.
@@ -18,4 +28,4 @@ message InferenceResponse {
 // Inference is the inference service.
 service Inference {
     rpc LlamaInference(InferenceRequest) returns (InferenceResponse) {}
-}
+}   

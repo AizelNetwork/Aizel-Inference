@@ -3,13 +3,14 @@ mod aizel {
 }
 
 use super::aizel::inference_server::Inference;
-use super::aizel::{InferenceRequest, InferenceResponse};
+use super::aizel::{InferenceRequest, InferenceResponse, InferenceType};
 use super::config::{
     models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, FACE_MODEL_SERVICE,
     INPUT_BUCKET, LLAMA_SERVER_PORT, MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET,
 };
+use crate::chains::contract::ModelInfo;
 use crate::chains::{
-    contract::{Contract, WALLET},
+    contract::Contract,
     ethereum::pubkey_to_address,
 };
 use crate::crypto::digest::Digest;
@@ -23,9 +24,7 @@ use ethers::{
     core::{
         abi::{self, Token},
         utils,
-    },
-    signers::Signer,
-    types::{H160, U256},
+    }
 };
 use log::{error, info};
 use openai_api_rs::v1::api::OpenAIClient;
@@ -43,6 +42,7 @@ pub struct AizelInference {
     sender: Sender<InferenceRequest>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct ModelServiceResponse {
     pub code: u16,
@@ -67,7 +67,7 @@ impl Inference for AizelInference {
 }
 
 impl AizelInference {
-    pub fn new(secret: Secret) -> Self {
+    pub fn new(secret: Secret, default_model_info: Option<ModelInfo>) -> Self {
         let (tx, mut rx) = channel::<InferenceRequest>(DEFAULT_CHANNEL_SIZE);
 
         let aizel_inference: AizelInference = Self {
@@ -75,9 +75,14 @@ impl AizelInference {
             sender: tx,
         };
         tokio::spawn(async move {
-            let mut child =
-                AizelInference::run_llama_server(&models_dir().join(DEFAULT_MODEL)).unwrap();
-            let mut current_model = DEFAULT_MODEL.to_string();
+            let (mut child, mut current_model) = match default_model_info {
+                Some(m) => {
+                    (AizelInference::run_llama_server(&models_dir().join(&m.name)).unwrap(), m.name)
+                },
+                None => {
+                    (AizelInference::run_llama_server(&models_dir().join(DEFAULT_MODEL)).unwrap(), DEFAULT_MODEL.to_string())
+                }
+            };
             let agent = AttestationAgent::new()
                 .await
                 .map_err(|e| {
@@ -86,55 +91,77 @@ impl AizelInference {
                 })
                 .unwrap();
             while let Some(req) = rx.recv().await {
-                if req.model != "Agent-1.0" && req.model != "Auth-1.0" {
-                    if req.model != current_model {
-                        // process llama model
-                        if !AizelInference::check_model_exist(&models_dir(), &req.model)
-                            .await
-                            .unwrap()
+                let model_info = Contract::query_model(req.model_id).await;
+                match model_info {
+                    Ok(model_info) => {
+                        let model_name = model_info.name;
+                        let model_cid = model_info.cid;
+                        match InferenceType::try_from(req.inference_type) {
+                            Ok(InferenceType::Llama) => {
+                                if model_name != current_model {
+                                    // process llama model
+                                    if !AizelInference::check_model_exist(&models_dir(), &model_name)
+                                        .await
+                                        .unwrap()
+                                    {
+                                        let client = MinioClient::get().await;
+                                        match client
+                                            .download_model(
+                                                MODEL_BUCKET,
+                                                &model_cid,
+                                                &models_dir().join(&model_name),
+                                            )
+                                            .await
+                                        {
+                                            Ok(_) => {
+                                                info!("download model from data node {}", model_name);
+                                            }
+                                            Err(e) => {
+                                                error!("failed to downlaod model: {}", e.to_string());
+                                            }
+                                        }
+                                    }
+                                    info!("change model from {} to {}", current_model, model_name);
+                                    match child.kill() {
+                                        Err(e) => {
+                                            error!("failed to kill llama server {}", e.to_string())
+                                        }
+                                        Ok(()) => {
+                                            child.wait().unwrap();
+                                            child = AizelInference::run_llama_server(
+                                                &models_dir().join(&model_name),
+                                            )
+                                            .unwrap();
+                                            current_model = model_name.clone();
+                                        }
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                error!("failed to decode inference type {}", e.to_string());
+                                continue ;
+                            },
+                
+                            _ => { }
+                        }
+                        match AizelInference::process_inference(&req, secret.clone(), &agent).await
                         {
-                            let client = MinioClient::get().await;
-                            match client
-                                .download_model(
-                                    MODEL_BUCKET,
-                                    &req.model,
-                                    &models_dir().join(&req.model),
-                                )
-                                .await
-                            {
-                                Ok(_) => {
-                                    info!("download model from data node {}", req.model);
-                                }
-                                Err(e) => {
-                                    error!("failed to downlaod model: {}", e.to_string());
-                                }
+                            Ok(_) => {
+                                info!("successfully processed the request {}", req.request_id);
                             }
-                        }
-                        info!("change model from {} to {}", current_model, req.model);
-                        match child.kill() {
-                            Err(e) => error!("failed to kill llama server {}", e.to_string()),
-                            Ok(()) => {
-                                child.wait().unwrap();
-                                child =
-                                    AizelInference::run_llama_server(&models_dir().join(&req.model))
-                                        .unwrap();
-                                current_model = req.model.clone();
+                            Err(e) => {
+                                error!(
+                                    "failed to process the request {}: {}",
+                                    req.request_id,
+                                    e.to_string()
+                                );
                             }
-                        }
-                    }
-                }
-                match AizelInference::process_inference(&req, secret.clone(), &agent).await {
-                    Ok(_) => {
-                        info!("successfully processed the request {}", req.request_id);
+                        };
                     }
                     Err(e) => {
-                        error!(
-                            "failed to process the request {}: {}",
-                            req.request_id,
-                            e.to_string()
-                        );
+                        error!("failed to query model from contract {}", e.to_string())
                     }
-                };
+                }
             }
         });
 
@@ -146,44 +173,43 @@ impl AizelInference {
         secret: Secret,
         agent: &AttestationAgent,
     ) -> Result<(), Error> {
-        let model = req.model.clone();
         let client: std::sync::Arc<MinioClient> = MinioClient::get().await;
         let user_input = client.get_inputs(INPUT_BUCKET, &req.input).await?;
         let decrypted_input = AizelInference::decrypt(&secret, user_input.input)?;
 
-        let output = match model.as_str() {
-            "Agent-1.0" => {
-                let transfer_info: Vec<&str> = decrypted_input.split(' ').collect();
-                if transfer_info.len() != 5 {
-                    return Err(Error::InferenceError {
-                        message: "failed to parse the instruction".to_string(),
-                    });
+        let output: String = match InferenceType::try_from(req.inference_type) {
+            Ok(InferenceType::Llama) => {
+                let client = OpenAIClient::new(String::new());
+                let req = ChatCompletionRequest::new(
+                    String::new(),
+                    vec![chat_completion::ChatCompletionMessage {
+                        role: chat_completion::MessageRole::user,
+                        content: chat_completion::Content::Text(decrypted_input),
+                        name: None,
+                        tool_calls: None,
+                        tool_call_id: None,
+                    }],
+                );
+                let result =
+                    client
+                        .chat_completion(req)
+                        .await
+                        .map_err(|e| Error::InferenceError {
+                            message: format!(
+                                "failed to request local llama sevrer {}",
+                                e.to_string()
+                            ),
+                        })?;
+                match &result.choices[0].message.content {
+                    Some(c) => c.clone(),
+                    None => {
+                        return Err(Error::InferenceError {
+                            message: "response is empty from local llama server".to_string(),
+                        });
+                    }
                 }
-                let from = pubkey_to_address(&req.user_pk).unwrap();
-                let encoded_data = [
-                    abi::encode_packed(&[
-                        Token::Address(H160::from_str(&from).unwrap()),
-                        Token::Address(H160::from_str(transfer_info[4]).unwrap()),
-                    ])
-                    .unwrap(),
-                    abi::encode(&[Token::Uint(U256::from_dec_str(transfer_info[1]).unwrap())]),
-                    abi::encode_packed(&[Token::Address(
-                        H160::from_str(transfer_info[2]).unwrap(),
-                    )])
-                    .unwrap(),
-                ]
-                .concat();
-                let message = utils::keccak256(&encoded_data);
-                let signature = WALLET.sign_message(message).await.unwrap();
-                signature
-                    .verify(message.as_ref(), WALLET.address())
-                    .unwrap();
-                format!(
-                    "{:} from {:} signature 0x{:}",
-                    decrypted_input, from, signature
-                )
-            }
-            "Auth-1.0" => {
+            },
+            Ok(InferenceType::FaceValidate) => {
                 let file = decrypted_input.clone();
                 let base64_encoded = file.split(',').last().unwrap_or_default();
                 let image_data = STANDARD.decode(base64_encoded).unwrap();
@@ -215,39 +241,16 @@ impl AizelInference {
                 } else {
                     "false".to_string()
                 }
-            }
+            },
+            Err(e) => {
+                error!("failed to query model from contract {}", e.to_string());
+                e.to_string()
+            },
             _ => {
-                let client = OpenAIClient::new(String::new());
-                let req = ChatCompletionRequest::new(
-                    String::new(),
-                    vec![chat_completion::ChatCompletionMessage {
-                        role: chat_completion::MessageRole::user,
-                        content: chat_completion::Content::Text(decrypted_input),
-                        name: None,
-                        tool_calls: None,
-                        tool_call_id: None,
-                    }],
-                );
-                let result =
-                    client
-                        .chat_completion(req)
-                        .await
-                        .map_err(|e| Error::InferenceError {
-                            message: format!(
-                                "failed to request local llama sevrer {}",
-                                e.to_string()
-                            ),
-                        })?;
-                match &result.choices[0].message.content {
-                    Some(c) => c.clone(),
-                    None => {
-                        return Err(Error::InferenceError {
-                            message: "response is empty from local llama server".to_string(),
-                        });
-                    }
-                }
-            }
+                "TO BE IMPLEMENTED".to_string()
+            },
         };
+
         let encrypted_output: String = AizelInference::encrypt(output, &req.user_pk)?;
         let output_hash: Digest = AizelInference::hash(&encrypted_output);
         let _ = client
@@ -337,7 +340,7 @@ impl AizelInference {
         let llama_server_output = fs::File::create(root_dir().join("llama_stdout.txt")).unwrap();
         let llama_server_error = fs::File::create(root_dir().join("llama_stderr.txt")).unwrap();
         info!("llama server model path {}", model_path.to_str().unwrap());
-        let child: Child = Command::new("python3")
+        let child: Child = Command::new("/home/jiangyi/aizel-python/bin/python")
             .arg("-m")
             .arg("llama_cpp.server")
             .arg("--model")

@@ -32,6 +32,7 @@ pub struct AizelConfig {
     pub inference_contract: String,
     pub inference_registry_contract: String,
     pub data_registry_contract: String,
+    pub model_contract: String,
     pub wallet_sk: String,
     // data node configuration
     pub minio_account: String,

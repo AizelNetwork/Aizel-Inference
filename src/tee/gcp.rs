@@ -43,7 +43,7 @@ async fn internal_get_report(nonce: String) -> Result<String, Error> {
         }
         Ok(stream) => TokioIo::new(stream),
     };
-    let (mut sender, connection) = match handshake(stream).await {
+    let (mut sender, _connection) = match handshake(stream).await {
         Err(e) => {
             return Err(Error::AttestationError {
                 teetype: TEEType::GCP,
@@ -55,7 +55,7 @@ async fn internal_get_report(nonce: String) -> Result<String, Error> {
                 },
             })
         }
-        Ok((sender, connection)) => (sender, spawn(async move { connection.await }) ),
+        Ok((sender, connection)) => (sender, spawn(async move { connection.await })),
     };
 
     let req = hyper::Request::builder()
@@ -65,15 +65,16 @@ async fn internal_get_report(nonce: String) -> Result<String, Error> {
         .header("Content-Type", "application/json")
         .body(Full::new(Bytes::from(custom_json)))
         .unwrap();
-    let resp: hyper::Response<hyper::body::Incoming> = sender
-        .send_request(req)
-        .await
-        .map_err(|e| Error::AttestationError {
-            teetype: TEEType::GCP,
-            error: AttestationError::ReportError {
-                message: format!("failed to send request {}", e.to_string()),
-            },
-        })?;
+    let resp: hyper::Response<hyper::body::Incoming> =
+        sender
+            .send_request(req)
+            .await
+            .map_err(|e| Error::AttestationError {
+                teetype: TEEType::GCP,
+                error: AttestationError::ReportError {
+                    message: format!("failed to send request {}", e.to_string()),
+                },
+            })?;
     let token: Vec<u8> = resp
         .collect()
         .await

@@ -9,6 +9,13 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use std::sync::Arc;
+
+#[derive(Debug)]
+pub struct ModelInfo {
+    pub name: String,
+    pub cid: String,
+}
+
 abigen!(
     InferenceContract,
     r#"[
@@ -30,6 +37,104 @@ abigen!(
     r#"[
         function getUrl(uint256 nodeId) public view returns (string)
     ]"#,
+);
+
+abigen!(
+    ModelContract,
+    r#"[
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "modelId",
+					"type": "uint256"
+				}
+			],
+			"name": "getModelDetails",
+			"outputs": [
+				{
+					"components": [
+						{
+							"internalType": "uint256",
+							"name": "modelId",
+							"type": "uint256"
+						},
+						{
+							"internalType": "string",
+							"name": "modelName",
+							"type": "string"
+						},
+						{
+							"internalType": "string",
+							"name": "CID",
+							"type": "string"
+						},
+						{
+							"internalType": "uint256",
+							"name": "size",
+							"type": "uint256"
+						},
+						{
+							"internalType": "uint256",
+							"name": "totalValue",
+							"type": "uint256"
+						}
+					],
+					"internalType": "struct Models.ModelDetails",
+					"name": "",
+					"type": "tuple"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "dataNodeId",
+					"type": "uint256"
+				}
+			],
+			"name": "getModelsByDataNodeId",
+			"outputs": [
+				{
+					"components": [
+						{
+							"internalType": "uint256",
+							"name": "modelId",
+							"type": "uint256"
+						},
+						{
+							"internalType": "string",
+							"name": "modelName",
+							"type": "string"
+						},
+						{
+							"internalType": "string",
+							"name": "CID",
+							"type": "string"
+						},
+						{
+							"internalType": "uint256",
+							"name": "size",
+							"type": "uint256"
+						},
+						{
+							"internalType": "uint256",
+							"name": "totalValue",
+							"type": "uint256"
+						}
+					],
+					"internalType": "struct Models.ModelDetails[]",
+					"name": "models",
+					"type": "tuple[]"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]"#,
 );
 
 pub struct Contract {}
@@ -93,6 +198,40 @@ impl Contract {
             })?;
         return Ok(exist);
     }
+
+    pub async fn query_model(model_id: u64) -> Result<ModelInfo, Error> {
+        let model: ModelDetails = MODEL_CONTRACT
+            .get_model_details(model_id.into())
+            .call()
+            .await
+            .map_err(|e| Error::ContractError {
+                message: e.to_string(),
+            })?;
+        return Ok(ModelInfo {
+            name: model.model_name,
+            cid: model.cid,
+        });
+    }
+
+    pub async fn query_data_node_default_model(
+        data_node_id: u64,
+    ) -> Result<Option<ModelInfo>, Error> {
+        let models: Vec<ModelDetails> = MODEL_CONTRACT
+            .get_models_by_data_node_id(data_node_id.into())
+            .call()
+            .await
+            .map_err(|e| Error::ContractError {
+                message: e.to_string(),
+            })?;
+        if models.is_empty() {
+            return Ok(None);
+        } else {
+            return Ok(Some(ModelInfo {
+                name: models[0].model_name.clone(),
+                cid: models[0].cid.clone(),
+            }));
+        }
+    }
 }
 
 lazy_static! {
@@ -130,6 +269,14 @@ lazy_static! {
                 .inference_registry_contract
                 .parse::<Address>()
                 .unwrap(),
+            signer,
+        )
+    };
+    pub static ref MODEL_CONTRACT: ModelContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
+        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
+        let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
+        ModelContract::new(
+            AIZEL_CONFIG.model_contract.parse::<Address>().unwrap(),
             signer,
         )
     };
