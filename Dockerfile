@@ -69,4 +69,5 @@ COPY --from=builder /python3.7 /python3.7
 COPY ./script/bootstrap.sh bootstrap.sh
 RUN mkdir /root/aizel
 EXPOSE 8080
+EXPOSE 9081
 ENTRYPOINT ["/bin/bash", "bootstrap.sh"]
