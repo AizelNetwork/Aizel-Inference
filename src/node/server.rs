@@ -5,36 +5,29 @@ mod aizel {
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse, InferenceType};
 use super::config::{
-    models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, FACE_MODEL_SERVICE,
-    INPUT_BUCKET, LLAMA_SERVER_PORT, MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET,
+    models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, INPUT_BUCKET,
+    LLAMA_SERVER_PORT, MODEL_BUCKET, OUTPUT_BUCKET, REPORT_BUCKET,
 };
+use crate::chains::contract::Contract;
 use crate::chains::contract::ModelInfo;
-use crate::chains::{
-    contract::Contract,
-    ethereum::pubkey_to_address,
-};
 use crate::crypto::digest::Digest;
 use crate::crypto::elgamal::{Ciphertext, Elgamal};
 use crate::crypto::secret::Secret;
 use crate::s3_minio::client::MinioClient;
 use crate::tee::attestation::AttestationAgent;
-use base64::{engine::general_purpose::STANDARD, Engine};
 use common::error::Error;
-use ethers::{
-    core::{
-        abi::{self, Token},
-        utils,
-    }
+use ethers::core::{
+    abi::{self, Token},
+    utils,
 };
 use log::{error, info};
 use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
-use reqwest::multipart::{Form, Part};
 use secp256k1::{PublicKey, SecretKey};
 use serde::Deserialize;
+use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::{fs, str::FromStr};
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::{Request, Response, Status};
 pub struct AizelInference {
@@ -76,12 +69,14 @@ impl AizelInference {
         };
         tokio::spawn(async move {
             let (mut child, mut current_model) = match default_model_info {
-                Some(m) => {
-                    (AizelInference::run_llama_server(&models_dir().join(&m.name)).unwrap(), m.name)
-                },
-                None => {
-                    (AizelInference::run_llama_server(&models_dir().join(DEFAULT_MODEL)).unwrap(), DEFAULT_MODEL.to_string())
-                }
+                Some(m) => (
+                    AizelInference::run_llama_server(&models_dir().join(&m.name)).unwrap(),
+                    m.name,
+                ),
+                None => (
+                    AizelInference::run_llama_server(&models_dir().join(DEFAULT_MODEL)).unwrap(),
+                    DEFAULT_MODEL.to_string(),
+                ),
             };
             let agent = AttestationAgent::new()
                 .await
@@ -100,9 +95,12 @@ impl AizelInference {
                             Ok(InferenceType::Llama) => {
                                 if model_name != current_model {
                                     // process llama model
-                                    if !AizelInference::check_model_exist(&models_dir(), &model_name)
-                                        .await
-                                        .unwrap()
+                                    if !AizelInference::check_model_exist(
+                                        &models_dir(),
+                                        &model_name,
+                                    )
+                                    .await
+                                    .unwrap()
                                     {
                                         let client = MinioClient::get().await;
                                         match client
@@ -114,10 +112,16 @@ impl AizelInference {
                                             .await
                                         {
                                             Ok(_) => {
-                                                info!("download model from data node {}", model_name);
+                                                info!(
+                                                    "download model from data node {}",
+                                                    model_name
+                                                );
                                             }
                                             Err(e) => {
-                                                error!("failed to downlaod model: {}", e.to_string());
+                                                error!(
+                                                    "failed to downlaod model: {}",
+                                                    e.to_string()
+                                                );
                                             }
                                         }
                                     }
@@ -136,13 +140,13 @@ impl AizelInference {
                                         }
                                     }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 error!("failed to decode inference type {}", e.to_string());
-                                continue ;
-                            },
-                
-                            _ => { }
+                                continue;
+                            }
+
+                            _ => {}
                         }
                         match AizelInference::process_inference(&req, secret.clone(), &agent).await
                         {
@@ -208,47 +212,45 @@ impl AizelInference {
                         });
                     }
                 }
-            },
-            Ok(InferenceType::FaceValidate) => {
-                let file = decrypted_input.clone();
-                let base64_encoded = file.split(',').last().unwrap_or_default();
-                let image_data = STANDARD.decode(base64_encoded).unwrap();
-                let user_id = pubkey_to_address(&req.user_pk).unwrap();
+            }
+            // Ok(InferenceType::FaceValidate) => {
+            //     let file = decrypted_input.clone();
+            //     let base64_encoded = file.split(',').last().unwrap_or_default();
+            //     let image_data = STANDARD.decode(base64_encoded).unwrap();
+            //     let user_id = pubkey_to_address(&req.user_pk).unwrap();
 
-                let file_part = Part::bytes(image_data).mime_str("image/png").map_err(|_| {
-                    Error::InferenceError {
-                        message: "image format is not png".to_string(),
-                    }
-                })?;
+            //     let file_part = Part::bytes(image_data).mime_str("image/png").map_err(|_| {
+            //         Error::InferenceError {
+            //             message: "image format is not png".to_string(),
+            //         }
+            //     })?;
 
-                let form = Form::new().part("files", file_part).text("userId", user_id);
+            //     let form = Form::new().part("files", file_part).text("userId", user_id);
 
-                let client = reqwest::Client::new();
-                let response = client
-                    .post(FACE_MODEL_SERVICE)
-                    .multipart(form)
-                    .send()
-                    .await
-                    .map_err(|e| Error::InferenceError {
-                        message: format!("failed to validate face image {}", e.to_string()),
-                    })?;
-                let resp: ModelServiceResponse =
-                    response.json().await.map_err(|e| Error::InferenceError {
-                        message: format!("failed to parse response {}", e.to_string()),
-                    })?;
-                if resp.data {
-                    "true".to_string()
-                } else {
-                    "false".to_string()
-                }
-            },
+            //     let client = reqwest::Client::new();
+            //     let response = client
+            //         .post(FACE_MODEL_SERVICE)
+            //         .multipart(form)
+            //         .send()
+            //         .await
+            //         .map_err(|e| Error::InferenceError {
+            //             message: format!("failed to validate face image {}", e.to_string()),
+            //         })?;
+            //     let resp: ModelServiceResponse =
+            //         response.json().await.map_err(|e| Error::InferenceError {
+            //             message: format!("failed to parse response {}", e.to_string()),
+            //         })?;
+            //     if resp.data {
+            //         "true".to_string()
+            //     } else {
+            //         "false".to_string()
+            //     }
+            // },
             Err(e) => {
                 error!("failed to query model from contract {}", e.to_string());
                 e.to_string()
-            },
-            _ => {
-                "TO BE IMPLEMENTED".to_string()
-            },
+            }
+            _ => "TO BE IMPLEMENTED".to_string(),
         };
 
         let encrypted_output: String = AizelInference::encrypt(output, &req.user_pk)?;

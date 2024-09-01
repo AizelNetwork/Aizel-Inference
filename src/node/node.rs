@@ -80,19 +80,18 @@ impl Node {
         let model_info = Contract::query_data_node_default_model(AIZEL_CONFIG.data_node_id).await?;
         match model_info {
             Some(m) => {
-                info!("data node {} has default model : {:?}",AIZEL_CONFIG.data_node_id,  &m);
+                info!(
+                    "data node {} has default model : {:?}",
+                    AIZEL_CONFIG.data_node_id, &m
+                );
                 if !AizelInference::check_model_exist(&models_dir(), &m.name).await? {
                     let client = MinioClient::get().await;
                     client
-                        .download_model(
-                            MODEL_BUCKET,
-                            &m.cid,
-                            &models_dir().join(&m.name),
-                        )
+                        .download_model(MODEL_BUCKET, &m.cid, &models_dir().join(&m.name))
                         .await?;
                 }
                 Ok(Some(m))
-            },
+            }
             None => {
                 warn!("data node doesn't have any models");
                 Ok(None)
