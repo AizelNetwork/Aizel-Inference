@@ -4,11 +4,7 @@ package aizel;
 
 enum InferenceType {
     llama = 0;
-    face_add_vector = 1;
-    face_validate = 2;
-    face_live_detection = 3;
-    face_get_avatar = 4;
-    auto_transfer = 5;
+    auto_transfer = 1;
 }
 
 // InferenceRequest is the request for inference.
