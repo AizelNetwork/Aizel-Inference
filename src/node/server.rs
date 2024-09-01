@@ -342,7 +342,7 @@ impl AizelInference {
         let llama_server_output = fs::File::create(root_dir().join("llama_stdout.txt")).unwrap();
         let llama_server_error = fs::File::create(root_dir().join("llama_stderr.txt")).unwrap();
         info!("llama server model path {}", model_path.to_str().unwrap());
-        let child: Child = Command::new("/home/jiangyi/aizel-python/bin/python")
+        let child: Child = Command::new("python3")
             .arg("-m")
             .arg("llama_cpp.server")
             .arg("--model")
