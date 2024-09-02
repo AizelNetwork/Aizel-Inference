@@ -74,6 +74,9 @@ jobs:
     name: Deploy Aizel Inference to GCP confidential space
     runs-on: self-hosted
     steps:
+      - name: Create image tag
+        run: echo "IMAGE_TAG=${{ env.REPOSITORY_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ env.IMAGE_VERSION }}" >> $GITHUB_ENV
+
       - name: Delete Old Instance
         run: gcloud compute instances delete inference-demo --zone asia-southeast1-b --quiet || true
       
