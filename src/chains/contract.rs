@@ -14,7 +14,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use std::str::FromStr;
 use std::sync::Arc;
-
+use log::info;
 #[derive(Debug)]
 pub struct ModelInfo {
     pub name: String,
@@ -308,6 +308,7 @@ impl Contract {
         .concat();
         let message = utils::keccak256(&encoded_data);
         let signature = WALLET.sign_message(message).await.unwrap().to_vec();
+        info!("request id {}, token address {}, from {}, to {}, amount {}, signature {}", request_id, token_address, from, to, amount, hex::encode(signature.clone()));
         let tx = TRANSFER_CONTRACT.agent_transfer(
             request_id.into(),
             token_address.parse().unwrap(),
