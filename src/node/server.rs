@@ -407,7 +407,7 @@ impl AizelInference {
             "mock report".to_string()
         };
 
-        Ok(InferenceOutput { output, report })
+        Ok(InferenceOutput { output: encrypted_output, report })
     }
 
     fn hash(message: &str) -> Digest {

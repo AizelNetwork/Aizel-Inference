@@ -11,11 +11,10 @@ use ethers::{
     signers::{LocalWallet, Signer},
     types::{Address, Bytes, U256},
 };
-use hex::FromHex;
 use lazy_static::lazy_static;
 use std::str::FromStr;
 use std::sync::Arc;
-use log::info;
+use log::{info, error};
 #[derive(Debug)]
 pub struct ModelInfo {
     pub name: String,
@@ -233,9 +232,13 @@ impl Contract {
         report_hash: [u8; 32],
     ) -> Result<(), Error> {
         let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), output_hash, report_hash);
-        let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
-            message: format!("failed to submit inference reuslt {}", e.to_string()),
-        })?;
+        let _pending_tx = tx.send().await.map_err(|e| {        
+            error!("failed to submit inference result: {}", e.to_string());
+            Error::InferenceError {
+                message: format!("failed to submit inference reuslt {}", e.to_string()),
+            }
+        }
+        )?;
         Ok(())
     }
 
