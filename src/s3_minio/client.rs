@@ -1,4 +1,4 @@
-use crate::chains::contract::Contract;
+use crate::{chains::contract::Contract, node::config::INPUT_BUCKET};
 use crate::node::config::AIZEL_CONFIG;
 use common::error::Error;
 use log::{error, info};
@@ -209,4 +209,10 @@ impl MinioClient {
             }),
         }
     }
+}
+
+#[tokio::test]
+async fn test_public_s3() {
+    let client = MinioClient::get_public_client().await;
+    println!("{}", client.bucket_exists(INPUT_BUCKET).await.unwrap());
 }

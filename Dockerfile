@@ -11,13 +11,13 @@ RUN apt-get update && apt-get install -y libtdx-attest-dev libsgx-dcap-quote-ver
 
 WORKDIR /python
 RUN wget https://www.python.org/ftp/python/3.8.19/Python-3.8.19.tar.xz && tar -xvf Python-3.8.19.tar.xz && cd Python-3.8.19 && ./configure --enable-optimizations --with-ssl --prefix=/python && make -j $(nproc) && make install && rm -rf /python/Python-3.8.19 /python/Python-3.8.19.tar.xz
-RUN /python/bin/pip3 install --upgrade 'llama-cpp-python[server]'
+RUN /python/bin/pip3 install 'llama-cpp-python[server]'
 
-WORKDIR /python3.7
-RUN wget https://www.python.org/ftp/python/3.7.16/Python-3.7.16.tar.xz && tar -xvf Python-3.7.16.tar.xz && cd Python-3.7.16 && ./configure --enable-optimizations --with-ssl --prefix=/python3.7 && make -j $(nproc) && make install && rm -rf /python/Python-3.7.16 /python/Python-3.7.16.tar.xz
-COPY ./requirements.txt /python/requirements.txt
-RUN /python3.7/bin/pip3 install -r /python/requirements.txt
-RUN /python3.7/bin/pip3 install dlib==19.24.0
+# WORKDIR /python3.7
+# RUN wget https://www.python.org/ftp/python/3.7.16/Python-3.7.16.tar.xz && tar -xvf Python-3.7.16.tar.xz && cd Python-3.7.16 && ./configure --enable-optimizations --with-ssl --prefix=/python3.7 && make -j $(nproc) && make install && rm -rf /python/Python-3.7.16 /python/Python-3.7.16.tar.xz
+# COPY ./requirements.txt /python/requirements.txt
+# RUN /python3.7/bin/pip3 install -r /python/requirements.txt
+# RUN /python3.7/bin/pip3 install dlib==19.24.0
 
 RUN USER=root cargo new --bin app
 WORKDIR /app
@@ -65,7 +65,7 @@ COPY --from=builder /app/target/release/inference-client /usr/local/bin/inferenc
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
 COPY --from=builder2 /app/retrieve-secret /usr/local/bin/retrieve-secret
 COPY --from=builder /python /python
-COPY --from=builder /python3.7 /python3.7
+# COPY --from=builder /python3.7 /python3.7
 COPY ./script/bootstrap.sh bootstrap.sh
 RUN mkdir /root/aizel
 EXPOSE 8080
