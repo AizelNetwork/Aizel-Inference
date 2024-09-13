@@ -1,5 +1,5 @@
 ---
-chain_id: 1281
+chain_id: 2241
 endpoint: https://krest.api.onfinality.io/public
 inference_contract: 0x73A7B03aEb6eE81108f5080FBbf7Be8f6bA6FD10
 inference_registry_contract: 0xFC7F3629c1A9AC16bd2951b84F8920Ad2C39087C
