@@ -80,5 +80,8 @@ jobs:
       - name: Delete Old Instance
         run: gcloud compute instances delete inference-demo --zone asia-southeast1-b --quiet || true
       
+      - name: Upload aizel config
+        run: aizel_config=$(base64 aizel_config.yml) && echo -n $aizel_config | gcloud secrets versions add aizel-config --data-file=-
+
       - name: Create confidential space
         run: gcloud compute instances create inference-demo --confidential-compute --shielded-secure-boot --scopes=cloud-platform --zone=asia-southeast1-b --image-project=confidential-space-images --image-family=confidential-space-debug --service-account=991449629434-compute@developer.gserviceaccount.com --metadata="^~^tee-image-reference=${{ env.IMAGE_TAG }}~tee-container-log-redirect=true" --machine-type=n2d-standard-16 --min-cpu-platform="AMD Milan" --boot-disk-size=50 --tags=will-dev

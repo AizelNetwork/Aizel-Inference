@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y libtdx-attest-dev libsgx-dcap-quote-ver
 
 WORKDIR /python
 RUN wget https://www.python.org/ftp/python/3.8.19/Python-3.8.19.tar.xz && tar -xvf Python-3.8.19.tar.xz && cd Python-3.8.19 && ./configure --enable-optimizations --with-ssl --prefix=/python && make -j $(nproc) && make install && rm -rf /python/Python-3.8.19 /python/Python-3.8.19.tar.xz
-RUN /python/bin/pip3 install 'llama-cpp-python[server]'
+RUN /python/bin/pip3 install --upgrade 'llama-cpp-python[server]'
 
 WORKDIR /python3.7
 RUN wget https://www.python.org/ftp/python/3.7.16/Python-3.7.16.tar.xz && tar -xvf Python-3.7.16.tar.xz && cd Python-3.7.16 && ./configure --enable-optimizations --with-ssl --prefix=/python3.7 && make -j $(nproc) && make install && rm -rf /python/Python-3.7.16 /python/Python-3.7.16.tar.xz

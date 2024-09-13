@@ -5,15 +5,21 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
-    types::{Address, U256},
+    types::{Address, U256, Bytes},
 };
 use lazy_static::lazy_static;
 use std::sync::Arc;
+use ethers::core::{
+    abi::{self, Token},
+    utils,
+};
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct ModelInfo {
     pub name: String,
     pub cid: String,
+    pub id: u64,
 }
 
 abigen!(
@@ -137,6 +143,50 @@ abigen!(
 	]"#,
 );
 
+abigen!(
+    TransferContract,
+    r#"[
+    {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "requestId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "tokenAddress",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "name": "AgentTransfer",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+    ]"#
+);
+
 pub struct Contract {}
 
 impl Contract {
@@ -210,6 +260,7 @@ impl Contract {
         return Ok(ModelInfo {
             name: model.model_name,
             cid: model.cid,
+            id: model_id,
         });
     }
 
@@ -229,8 +280,33 @@ impl Contract {
             return Ok(Some(ModelInfo {
                 name: models[0].model_name.clone(),
                 cid: models[0].cid.clone(),
+                id: models[0].model_id.try_into().unwrap(),
             }));
         }
+    }
+
+    pub async fn transfer(request_id: u64, token_address: String, from: String, to: String, amount: U256) -> Result<(), Error> {
+        // signature 
+        let encoded_data = [
+            abi::encode(&[Token::Uint(
+                U256::from_dec_str(&request_id.to_string()).unwrap(),
+            )]),
+            abi::encode_packed(&[
+                Token::Address(Address::from_str(&token_address).unwrap()),
+                Token::Address(Address::from_str(&from).unwrap()),
+                Token::Address(Address::from_str(&to).unwrap()),
+            ])
+            .unwrap(),
+            abi::encode(&[Token::Uint(amount)]),
+        ]
+        .concat();
+        let message = utils::keccak256(&encoded_data);
+        let signature = WALLET.sign_message(message).await.unwrap().to_vec();
+        let tx = TRANSFER_CONTRACT.agent_transfer(request_id.into(), token_address.parse().unwrap(), from.parse().unwrap(), to.parse().unwrap(), amount, Bytes::from_iter(signature) );
+        let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
+            message: format!("failed to submit inference reuslt {}", e.to_string()),
+        })?;
+        Ok(())
     }
 }
 
@@ -276,6 +352,15 @@ lazy_static! {
         let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
         let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
         ModelContract::new(
+            AIZEL_CONFIG.model_contract.parse::<Address>().unwrap(),
+            signer,
+        )
+    };
+
+    pub static ref TRANSFER_CONTRACT: TransferContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
+        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
+        let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
+        TransferContract::new(
             AIZEL_CONFIG.model_contract.parse::<Address>().unwrap(),
             signer,
         )

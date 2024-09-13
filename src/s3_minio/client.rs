@@ -22,8 +22,8 @@ use tokio::sync::OnceCell;
 //     static ref MINIO_CLIENT: MinioClient = MinioClient::new();
 // }
 
-static MINIO_CLIENT: OnceCell<Arc<MinioClient>> = OnceCell::const_new();
-
+static MINIO_DATA_NODE_CLIENT: OnceCell<Arc<MinioClient>> = OnceCell::const_new();
+static MINIO_PUBLIC_NODE_CLIENT: OnceCell<Arc<MinioClient>> = OnceCell::const_new();
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct UserInput {
     pub user: String,
@@ -36,8 +36,8 @@ impl UserInput {
     }
 }
 
-async fn initialize() -> Arc<MinioClient> {
-    Arc::new(MinioClient::new().await)
+async fn initialize(url: String, account_info: Option<(String, String)>) -> Arc<MinioClient> {
+    Arc::new(MinioClient::new(url, account_info).await)
 }
 
 #[derive(Debug)]
@@ -46,24 +46,45 @@ pub struct MinioClient {
 }
 
 impl MinioClient {
-    async fn new() -> Self {
-        let data_node_url = Contract::query_data_node_url(AIZEL_CONFIG.data_node_id)
-            .await
-            .unwrap()
-            .parse::<BaseUrl>()
-            .unwrap();
-        let static_provider = StaticProvider::new(
-            &AIZEL_CONFIG.minio_account,
-            &AIZEL_CONFIG.minio_password,
-            None,
-        );
+    async fn new(url: String, account_info: Option<(String, String)>) -> Self {
+        // let data_node_url = Contract::query_data_node_url(AIZEL_CONFIG.data_node_id)
+        //     .await
+        //     .unwrap()
+        //     .parse::<BaseUrl>()
+        //     .unwrap();
+        let data_node_url = url.parse::<BaseUrl>().unwrap();
+        let static_provider = match account_info {
+            Some((account, password)) => StaticProvider::new(&account, &password, None),
+            None => StaticProvider::new("", "", None),
+        };
         let client =
             Client::new(data_node_url, Some(Box::new(static_provider)), None, None).unwrap();
         MinioClient { client }
     }
 
-    pub async fn get() -> Arc<MinioClient> {
-        MINIO_CLIENT.get_or_init(initialize).await.clone()
+    pub async fn get_data_client() -> Arc<MinioClient> {
+        let data_node_url = Contract::query_data_node_url(AIZEL_CONFIG.data_node_id)
+            .await
+            .unwrap();
+        MINIO_DATA_NODE_CLIENT
+            .get_or_init(|| {
+                initialize(
+                    data_node_url,
+                    Some((
+                        AIZEL_CONFIG.minio_account.clone(),
+                        AIZEL_CONFIG.minio_password.clone(),
+                    )),
+                )
+            })
+            .await
+            .clone()
+    }
+
+    pub async fn get_public_client() -> Arc<MinioClient> {
+        MINIO_PUBLIC_NODE_CLIENT
+            .get_or_init(|| initialize(AIZEL_CONFIG.public_data_node.clone(), None))
+            .await
+            .clone()
     }
 
     pub async fn get_inputs(
@@ -180,17 +201,4 @@ impl MinioClient {
             }),
         }
     }
-}
-
-#[tokio::test]
-async fn test_get_input() {
-    let client = MinioClient::get().await;
-    let input = client
-        .download_model(
-            "models",
-            "llama_2_7b.Q4_K_M.gguf-1.0",
-            &PathBuf::from("llama_2_7b.Q4_K_M.gguf-1.0"),
-        )
-        .await;
-    println!("{:?}", input.unwrap());
 }

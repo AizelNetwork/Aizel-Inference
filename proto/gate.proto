@@ -3,15 +3,15 @@ syntax = "proto3";
 package aizel;
 
 service GateService {
-    rpc NodeRegistration(NodeRegistrationRequest) returns (NodeRegistrationResponse);
+    rpc UploadOutput(UploadOutputRequest) returns (UploadOutputResponse);
 }
 
-message NodeRegistrationRequest {
-    string ip = 1;
-    string pub_key = 2;
-    int32  tee_type = 3;
-    string report = 4;
+message UploadOutputRequest {
+    string output = 1;
+    string report = 2;
 }
 
-message NodeRegistrationResponse {
+message UploadOutputResponse {
+    string output_hash = 1;
+    string report_hash = 2;
 }

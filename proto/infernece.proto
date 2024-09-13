@@ -13,7 +13,6 @@ message InferenceRequest {
     uint64 model_id = 2;
     string input = 3;
     string user_pk = 4;
-    InferenceType inference_type = 5;
 }
 
 // InferenceResponse is the response for inference.

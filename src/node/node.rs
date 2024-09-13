@@ -85,7 +85,7 @@ impl Node {
                     AIZEL_CONFIG.data_node_id, &m
                 );
                 if !AizelInference::check_model_exist(&models_dir(), &m.name).await? {
-                    let client = MinioClient::get().await;
+                    let client = MinioClient::get_data_client().await;
                     client
                         .download_model(MODEL_BUCKET, &m.cid, &models_dir().join(&m.name))
                         .await?;

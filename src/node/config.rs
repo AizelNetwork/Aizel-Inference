@@ -3,6 +3,7 @@ use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 
 pub const DEFAULT_BASE_PORT: u16 = 8080;
 
@@ -23,6 +24,16 @@ pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 pub const LLAMA_SERVER_PORT: u16 = 8888;
 
 pub const FACE_MODEL_SERVICE: &str = "http://localhost:9081/aizel/face/validate";
+pub const TRANSFER_AGENT_ID: u64 = 2;
+
+lazy_static! {
+    pub static ref COIN_ADDRESS_MAPPING: HashMap<String, String> = {
+        let mut coin_address_mapping = HashMap::new();
+        coin_address_mapping.insert("USDT".to_string(), "0x411A42fE3F187b778e8D2dAE41E062D3F417929a".to_string());
+        coin_address_mapping
+    };
+}
+
 
 #[derive(Deserialize, Debug)]
 pub struct AizelConfig {
@@ -33,6 +44,7 @@ pub struct AizelConfig {
     pub inference_registry_contract: String,
     pub data_registry_contract: String,
     pub model_contract: String,
+    pub transfer_contract: String,
     pub wallet_sk: String,
     // data node configuration
     pub minio_account: String,
@@ -44,6 +56,8 @@ pub struct AizelConfig {
     pub initial_stake: u64,
     pub within_tee: bool,
     pub node_secret: Option<String>,
+    pub gate_url: String,
+    pub public_data_node: String,
 }
 pub trait FromFile<T: DeserializeOwned> {
     fn from_file<P: AsRef<Path>>(path: P) -> Result<T, String> {
