@@ -213,6 +213,27 @@ impl MinioClient {
 
 #[tokio::test]
 async fn test_public_s3() {
+    use crate::node::config::models_dir;
     let client = MinioClient::get_public_client().await;
     println!("{}", client.bucket_exists(INPUT_BUCKET).await.unwrap());
+    let model_info = Contract::query_model(2).await.unwrap();
+    let client = MinioClient::get_data_client().await;
+    let model_id = model_info.id;
+    let model_name = model_info.name;
+    let model_cid = model_info.cid;
+    match client
+        .download_model(
+            "models",
+            &model_cid,
+            &models_dir().join(&model_name),
+        )
+        .await
+    {
+        Ok(_) => {
+            println!("download model from data node {}", model_name);
+        }
+        Err(e) => {
+            println!("failed to downlaod model: {}", e.to_string());
+        }
+    }
 }

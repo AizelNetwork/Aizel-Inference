@@ -24,7 +24,7 @@ pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 pub const LLAMA_SERVER_PORT: u16 = 8888;
 
 pub const FACE_MODEL_SERVICE: &str = "http://localhost:9081/aizel/face/validate";
-pub const TRANSFER_AGENT_ID: u64 = 2;
+pub const TRANSFER_AGENT_ID: u64 = 1;
 
 lazy_static! {
     pub static ref COIN_ADDRESS_MAPPING: HashMap<String, String> = {

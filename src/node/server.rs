@@ -33,6 +33,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::thread::sleep;
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::{Request, Response, Status};
 pub struct AizelInference {
@@ -89,11 +90,11 @@ impl AizelInference {
         tokio::spawn(async move {
             let (mut child, mut current_model) = match default_model_info {
                 Some(m) => (
-                    AizelInference::run_llama_server(&models_dir().join(&m.name), m.id).unwrap(),
+                    AizelInference::run_llama_server(&models_dir().join(&m.name), m.id).await.unwrap(),
                     m.id,
                 ),
                 None => (
-                    AizelInference::run_llama_server(&models_dir().join(DEFAULT_MODEL), 0).unwrap(),
+                    AizelInference::run_llama_server(&models_dir().join(DEFAULT_MODEL), 0).await.unwrap(),
                     0,
                 ),
             };
@@ -153,9 +154,10 @@ impl AizelInference {
                                     child = AizelInference::run_llama_server(
                                         &models_dir().join(&model_name),
                                         model_id,
-                                    )
+                                    ).await
                                     .unwrap();
                                     current_model = model_id;
+                                    
                                 }
                             }
                         }
@@ -461,7 +463,7 @@ impl AizelInference {
         Ok(false)
     }
 
-    pub fn run_llama_server(model_path: &PathBuf, model_id: u64) -> Result<Child, Error> {
+    pub async fn run_llama_server(model_path: &PathBuf, model_id: u64) -> Result<Child, Error> {
         let llama_server_output = fs::File::create(root_dir().join("llama_stdout.txt")).unwrap();
         let llama_server_error = fs::File::create(root_dir().join("llama_stderr.txt")).unwrap();
         info!("llama server model path {}", model_path.to_str().unwrap());
@@ -487,6 +489,7 @@ impl AizelInference {
             command = command.arg("--chat_format").arg("chatml-function-calling");
         }
         let child = command.spawn().expect("Failed to start Python script");
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
         Ok(child)
     }
 }
@@ -545,7 +548,7 @@ async fn test_openai_function_tool() {
         }),
     );
 
-    std::env::set_var("OPENAI_API_BASE", "http://localhost:8000/v1");
+    std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
     let client = OpenAIClient::new(String::new());
     let req = ChatCompletionRequest::new(
         String::new(),
@@ -628,6 +631,6 @@ async fn test_load_llama_cpp_server() {
         .await;
     println!("finished {:?}", input.unwrap());
 
-    let mut child = AizelInference::run_llama_server(&PathBuf::from(model_path), 4).unwrap();
+    let mut child = AizelInference::run_llama_server(&PathBuf::from(model_path), 4).await.unwrap();
     child.wait();
 }
