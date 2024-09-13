@@ -73,7 +73,7 @@ func GetSecret(skName string) {
 
 func main() {
 	if metadata.OnGCE() {
-		GetSecret("aizel-config")
+		GetSecret("aizel-config-peaq")
 	} else if OnAliCloud() {
 		resp, err := http.Get("http://100.100.100.200/latest/meta-data/region-id")
 		if err != nil {

@@ -1,0 +1,84 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+# GitHub recommends pinning actions to a commit SHA.
+# To get a newer version, you will need to update the SHA.
+# You can also reference a tag or branch, but the action may change without warning.
+
+name: Publish Image
+
+on:
+  push:
+    branches:
+      - dev-peaq
+
+env:
+  PROJECT_ID: bionic-mercury-421809
+  PROJECT_NUMBER: 991449629434
+
+  REPOSITORY: aizel
+  REPOSITORY_REGION: asia
+
+  IMAGE: aizel_inference
+  IMAGE_VERSION: 0.0.2
+
+  SUBMODULE_BUILD_IMAGE_TAG: aizel-face-recognition-build:0.0.1
+  
+jobs: 
+  push_to_registry:
+    name: Push Docker image to Docker Hub
+    runs-on: self-hosted
+    permissions:
+     contents: 'read'
+     id-token: 'write'
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+
+      # - id: 'auth'
+      #   name: 'Obtain access token by using workload identity federation'
+      #   uses: 'google-github-actions/auth@v2'
+      #   with:
+      #     project_id: ${{ env.PROJECT_ID }}
+      #     workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-action/providers/github-actions-oidc
+
+      - name: Login to Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REPOSITORY_REGION }}-docker.pkg.dev
+
+      - name: Create image tag
+        run: echo "IMAGE_TAG=${{ env.REPOSITORY_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ env.IMAGE_VERSION }}" >> $GITHUB_ENV
+
+      - name: Create Submodule Build Image
+        run: docker build --tag "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" -f ./aizel-face-recognition/Dockerfile.build ./aizel-face-recognition
+
+      - name: Delete Old target
+        run: docker run --rm -v ./aizel-face-recognition:/root/aizel-face-recognition "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" rm -rf /root/aizel-face-recognition/target
+
+      - name: Build Submodule
+        run: docker run --rm --name aizel_face_recognition_build -v ./aizel-face-recognition:/root/aizel-face-recognition -v /opt/.m2:/root/.m2 "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-face-recognition && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: ${{ env.IMAGE_TAG }}
+          context: .
+
+  deploy_gcp_cs:
+    needs: push_to_registry
+    name: Deploy Aizel Inference to GCP confidential space
+    runs-on: self-hosted
+    steps:
+      - name: Create image tag
+        run: echo "IMAGE_TAG=${{ env.REPOSITORY_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ env.IMAGE_VERSION }}" >> $GITHUB_ENV
+
+      - name: Delete Old Instance
+        run: gcloud compute instances delete inference-demo-peaq --zone asia-southeast1-b --quiet || true
+
+      - name: Create confidential space
+        run: gcloud compute instances create inference-demo-peaq --confidential-compute --shielded-secure-boot --scopes=cloud-platform --zone=asia-southeast1-b --image-project=confidential-space-images --image-family=confidential-space-debug --service-account=991449629434-compute@developer.gserviceaccount.com --metadata="^~^tee-image-reference=${{ env.IMAGE_TAG }}~tee-container-log-redirect=true" --machine-type=n2d-standard-16 --min-cpu-platform="AMD Milan" --boot-disk-size=50 --tags=will-dev
