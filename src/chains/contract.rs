@@ -11,6 +11,7 @@ use ethers::{
     signers::{LocalWallet, Signer},
     types::{Address, Bytes, U256},
 };
+use hex::FromHex;
 use lazy_static::lazy_static;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -308,7 +309,7 @@ impl Contract {
         .concat();
         let message = utils::keccak256(&encoded_data);
         let signature = WALLET.sign_message(message).await.unwrap().to_vec();
-        info!("request id {}, token address {}, from {}, to {}, amount {}, signature {}", request_id, token_address, from, to, amount, hex::encode(signature.clone()));
+        info!("request id {}, token address {}, from {}, to {}, amount {}, signature 0x{}", request_id, token_address, from, to, amount, hex::encode(signature.clone()));
         let tx = TRANSFER_CONTRACT.agent_transfer(
             request_id.into(),
             token_address.parse().unwrap(),
@@ -374,7 +375,7 @@ lazy_static! {
         let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
         let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
         TransferContract::new(
-            AIZEL_CONFIG.model_contract.parse::<Address>().unwrap(),
+            AIZEL_CONFIG.transfer_contract.parse::<Address>().unwrap(),
             signer,
         )
     };
@@ -398,4 +399,29 @@ async fn query_url() {
         .await
         .unwrap();
     println!("URL: {}", url);
+}
+
+#[tokio::test]
+async fn test_call_contract() {
+    use ethers::core::{
+        utils::{parse_units, ParseUnits},
+    };
+    let request_id = 135;
+    let token_address = "0x411A42fE3F187b778e8D2dAE41E062D3F417929a";
+    let from = "0xc68884d8be3d37e2fd61837cb65bc72aa5a4ebcf";
+    let to = "0xC68884D8bE3D37E2fD61837cB65bc72Aa5a4EBcf";
+    let pu: ParseUnits = parse_units(10, 18).unwrap();
+    let amount = U256::from(pu);
+    let signature = "82c1f5687c4f0353e36b1d735ebb9ce35f0646cf0d0674e3aae5bbb35b7175b15a6491b712689e11e6b7a559f09f6db85042c18358a25d07b0eba9cc110d1d881b";
+    let tx = TRANSFER_CONTRACT.agent_transfer(
+        request_id.into(),
+        token_address.parse().unwrap(),
+        from.parse().unwrap(),
+        to.parse().unwrap(),
+        amount,
+        Bytes::from_hex(signature).unwrap(),
+    );
+    let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
+        message: format!("failed to submit inference reuslt {}", e.to_string()),
+    }).unwrap();
 }
