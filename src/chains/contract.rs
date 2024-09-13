@@ -1,19 +1,19 @@
 use crate::node::config::AIZEL_CONFIG;
 use common::error::Error;
+use ethers::core::{
+    abi::{self, Token},
+    utils,
+};
 use ethers::{
     contract::abigen,
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
-    types::{Address, U256, Bytes},
+    types::{Address, Bytes, U256},
 };
 use lazy_static::lazy_static;
-use std::sync::Arc;
-use ethers::core::{
-    abi::{self, Token},
-    utils,
-};
 use std::str::FromStr;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct ModelInfo {
@@ -285,8 +285,14 @@ impl Contract {
         }
     }
 
-    pub async fn transfer(request_id: u64, token_address: String, from: String, to: String, amount: U256) -> Result<(), Error> {
-        // signature 
+    pub async fn transfer(
+        request_id: u64,
+        token_address: String,
+        from: String,
+        to: String,
+        amount: U256,
+    ) -> Result<(), Error> {
+        // signature
         let encoded_data = [
             abi::encode(&[Token::Uint(
                 U256::from_dec_str(&request_id.to_string()).unwrap(),
@@ -302,7 +308,14 @@ impl Contract {
         .concat();
         let message = utils::keccak256(&encoded_data);
         let signature = WALLET.sign_message(message).await.unwrap().to_vec();
-        let tx = TRANSFER_CONTRACT.agent_transfer(request_id.into(), token_address.parse().unwrap(), from.parse().unwrap(), to.parse().unwrap(), amount, Bytes::from_iter(signature) );
+        let tx = TRANSFER_CONTRACT.agent_transfer(
+            request_id.into(),
+            token_address.parse().unwrap(),
+            from.parse().unwrap(),
+            to.parse().unwrap(),
+            amount,
+            Bytes::from_iter(signature),
+        );
         let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
             message: format!("failed to submit inference reuslt {}", e.to_string()),
         })?;
@@ -356,7 +369,6 @@ lazy_static! {
             signer,
         )
     };
-
     pub static ref TRANSFER_CONTRACT: TransferContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
         let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
         let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));

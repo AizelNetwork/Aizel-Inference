@@ -4,37 +4,37 @@ mod aizel {
 use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
-use super::aizel::UploadOutputRequest;
+use super::aizel::{UploadOutputRequest, UploadOutputResponse};
 use super::config::{
-    models_dir, root_dir, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL, INPUT_BUCKET,
-    LLAMA_SERVER_PORT, MODEL_BUCKET, TRANSFER_AGENT_ID, COIN_ADDRESS_MAPPING
+    models_dir, root_dir, AIZEL_CONFIG, COIN_ADDRESS_MAPPING, DEFAULT_CHANNEL_SIZE, DEFAULT_MODEL,
+    INPUT_BUCKET, LLAMA_SERVER_PORT, MODEL_BUCKET, TRANSFER_AGENT_ID,
 };
 use crate::chains::contract::Contract;
 use crate::chains::contract::ModelInfo;
+use crate::chains::ethereum::pubkey_to_address;
 use crate::crypto::digest::Digest;
 use crate::crypto::elgamal::{Ciphertext, Elgamal};
 use crate::crypto::secret::Secret;
 use crate::s3_minio::client::MinioClient;
 use crate::tee::attestation::AttestationAgent;
 use common::error::Error;
-use ethers::types::U256;
 use ethers::core::{
     abi::{self, Token},
     utils,
     utils::{parse_units, ParseUnits},
 };
+use ethers::types::U256;
 use log::{error, info};
 use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 use secp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::{Request, Response, Status};
-use std::collections::HashMap;
-use crate::chains::ethereum::pubkey_to_address;
 pub struct AizelInference {
     pub secret: Secret,
     sender: Sender<InferenceRequest>,
@@ -59,7 +59,7 @@ struct InferenceOutput {
 struct TransferInfo {
     to: String,
     token: String,
-    amount: u64
+    amount: u64,
 }
 
 #[tonic::async_trait]
@@ -165,21 +165,10 @@ impl AizelInference {
                             Ok(output) => {
                                 info!("successfully processed the request {}", req.request_id);
                                 // submit output to gate server
-                                let mut client =
-                                    GateServiceClient::connect(AIZEL_CONFIG.gate_url.clone())
+                                let mut resp: UploadOutputResponse =
+                                    AizelInference::submit_output(output.output, output.report)
                                         .await
-                                        .map_err(|_| Error::InferenceError {
-                                            message: "failed to connect to gate server".to_string(),
-                                        })
                                         .unwrap();
-                                let response = client
-                                    .upload_output(UploadOutputRequest {
-                                        output: output.output,
-                                        report: output.report,
-                                    })
-                                    .await
-                                    .unwrap();
-                                let mut resp = response.into_inner();
                                 let output_hash = hex::decode(resp.output_hash.split_off(2))
                                     .unwrap()
                                     .try_into()
@@ -216,6 +205,21 @@ impl AizelInference {
         aizel_inference
     }
 
+    async fn submit_output(output: String, report: String) -> Result<UploadOutputResponse, Error> {
+        let mut client = GateServiceClient::connect(AIZEL_CONFIG.gate_url.clone())
+            .await
+            .map_err(|_| Error::InferenceError {
+                message: "failed to connect to gate server".to_string(),
+            })
+            .unwrap();
+        let response = client
+            .upload_output(UploadOutputRequest { output, report })
+            .await
+            .unwrap();
+        let resp: crate::node::aizel::UploadOutputResponse = response.into_inner();
+        Ok(resp)
+    }
+
     async fn handle_error(req: &InferenceRequest, e: Error, agent: &AttestationAgent) {
         let output = e.to_string();
         let encrypted_output: String = match AizelInference::encrypt(&output, &req.user_pk) {
@@ -234,7 +238,9 @@ impl AizelInference {
         } else {
             "mock report".to_string()
         };
+
         let report_hash: Digest = AizelInference::hash(&report);
+        let _ = AizelInference::submit_output(encrypted_output, report).await;
         let _ = Contract::submit_inference(req.request_id, output_hash.0, report_hash.0).await;
     }
 
@@ -301,7 +307,9 @@ impl AizelInference {
             Some(chat_completion::FinishReason::tool_calls) => {
                 let tool_calls = result.choices[0].message.tool_calls.as_ref().unwrap();
                 if tool_calls.is_empty() {
-                    return Err(Error::InferenceError { message: "function calling failed".to_string() });
+                    return Err(Error::InferenceError {
+                        message: "function calling failed".to_string(),
+                    });
                 }
                 let tool_call = tool_calls[0].clone();
                 let name = tool_call.function.name.clone().unwrap();
@@ -311,10 +319,12 @@ impl AizelInference {
                     info!("transfer agent result {:?}", t);
                 }
                 Ok(t)
-            },
+            }
             _ => {
                 error!("function call failed");
-                Err(Error::InferenceError { message: "function calling failed".to_string() })
+                Err(Error::InferenceError {
+                    message: "function calling failed".to_string(),
+                })
             }
         }
     }
@@ -333,13 +343,28 @@ impl AizelInference {
             let from = pubkey_to_address(&req.user_pk).unwrap();
             let token_address = COIN_ADDRESS_MAPPING.get(&transfer_info.token);
             if token_address.is_none() {
-                return Err(Error::InferenceError { message: "failed to transfer, token address is unkown".to_string() });
+                return Err(Error::InferenceError {
+                    message: "failed to transfer, token address is unkown".to_string(),
+                });
             }
             let pu: ParseUnits = parse_units(transfer_info.amount, 18).unwrap();
             let amount = U256::from(pu);
-            let output = format!("token {}, transfer {} from {} to {}", token_address.unwrap(), amount, from, transfer_info.to);
+            let output = format!(
+                "token {}, transfer {} from {} to {}",
+                token_address.unwrap(),
+                amount,
+                from,
+                transfer_info.to
+            );
             info!("auto transfer output {}", output);
-            Contract::transfer(req.request_id, token_address.unwrap().clone(), from,  transfer_info.to, amount).await?;
+            Contract::transfer(
+                req.request_id,
+                token_address.unwrap().clone(),
+                from,
+                transfer_info.to,
+                amount,
+            )
+            .await?;
             output
         } else {
             let client = OpenAIClient::new(String::new());
@@ -490,9 +515,9 @@ async fn test_openai_client() {
 
 #[tokio::test]
 async fn test_openai_function_tool() {
-    use std::collections::HashMap;
     use openai_api_rs::v1::api::OpenAIClient;
     use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
+    use std::collections::HashMap;
 
     let mut properties = HashMap::new();
     properties.insert(
@@ -572,7 +597,7 @@ async fn test_openai_function_tool() {
             struct TransferInfo {
                 to: String,
                 token: String,
-                amount: u64
+                amount: u64,
             }
             let tool_calls = result.choices[0].message.tool_calls.as_ref().unwrap();
             for tool_call in tool_calls {
@@ -591,7 +616,6 @@ async fn test_openai_function_tool() {
             println!("Null");
         }
     }
-
 }
 
 #[tokio::test]

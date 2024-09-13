@@ -82,7 +82,15 @@ impl MinioClient {
 
     pub async fn get_public_client() -> Arc<MinioClient> {
         MINIO_PUBLIC_NODE_CLIENT
-            .get_or_init(|| initialize(AIZEL_CONFIG.public_data_node.clone(), None))
+            .get_or_init(|| {
+                initialize(
+                    AIZEL_CONFIG.public_data_node.clone(),
+                    Some((
+                        AIZEL_CONFIG.minio_account.clone(),
+                        AIZEL_CONFIG.minio_password.clone(),
+                    )),
+                )
+            })
             .await
             .clone()
     }

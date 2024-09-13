@@ -2,8 +2,8 @@ use common::error::Error;
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 pub const DEFAULT_BASE_PORT: u16 = 8080;
 
@@ -29,11 +29,13 @@ pub const TRANSFER_AGENT_ID: u64 = 2;
 lazy_static! {
     pub static ref COIN_ADDRESS_MAPPING: HashMap<String, String> = {
         let mut coin_address_mapping = HashMap::new();
-        coin_address_mapping.insert("USDT".to_string(), "0x411A42fE3F187b778e8D2dAE41E062D3F417929a".to_string());
+        coin_address_mapping.insert(
+            "USDT".to_string(),
+            "0x411A42fE3F187b778e8D2dAE41E062D3F417929a".to_string(),
+        );
         coin_address_mapping
     };
 }
-
 
 #[derive(Deserialize, Debug)]
 pub struct AizelConfig {
