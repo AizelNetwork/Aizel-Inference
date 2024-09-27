@@ -1,16 +1,15 @@
 use super::aizel::inference_server::InferenceServer;
 use super::{
-    config::{models_dir, node_key_path, root_dir, AIZEL_CONFIG, MODEL_BUCKET},
-    server::AizelInference,
+    aizel_server::AizelInference,
+    config::{models_dir, node_key_path, root_dir, AIZEL_CONFIG},
 };
-use crate::chains::contract::{Contract, ModelInfo};
-use crate::s3_minio::client::MinioClient;
+use crate::chains::contract::Contract;
 use crate::{
     crypto::secret::{Export, Secret},
     tee::attestation::AttestationAgent,
 };
 use common::error::Error;
-use log::{error, info, warn};
+use log::{error, info};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -76,33 +75,12 @@ impl Node {
         Ok(())
     }
 
-    async fn prepare_model(&self) -> Result<Option<ModelInfo>, Error> {
-        let model_info = Contract::query_data_node_default_model(AIZEL_CONFIG.data_node_id).await?;
-        match model_info {
-            Some(m) => {
-                info!(
-                    "data node {} has default model : {:?}",
-                    AIZEL_CONFIG.data_node_id, &m
-                );
-                if !AizelInference::check_model_exist(&models_dir(), &m.name).await? {
-                    let client = MinioClient::get_data_client().await;
-                    client
-                        .download_model(MODEL_BUCKET, &m.cid, &models_dir().join(&m.name))
-                        .await?;
-                }
-                Ok(Some(m))
-            }
-            None => {
-                warn!("data node doesn't have any models");
-                Ok(None)
-            }
-        }
-    }
-
     pub async fn run_server(&self) -> Result<(), Error> {
         std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
-        let default_model_info = self.prepare_model().await?;
-        let aizel_inference_service = AizelInference::new(self.secret.clone(), default_model_info);
+        let default_model_info =
+            Contract::query_data_node_default_model(AIZEL_CONFIG.data_node_id).await?;
+        let aizel_inference_service =
+            AizelInference::new(self.secret.clone(), default_model_info).await;
         self.register().await?;
 
         let mut listen_addr = self.address.clone();

@@ -4,3 +4,6 @@
 [submodule "aizel-face-recognition"]
 	path = aizel-face-recognition
 	url = git@github.com:AizelNetwork/aizel-face-recognition.git
+[submodule "aizel-peaq-combinder"]
+	path = aizel-peaq-combinder
+	url = git@github.com:AizelNetwork/aizel-peaq-combinder.git

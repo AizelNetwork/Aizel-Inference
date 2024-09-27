@@ -12,9 +12,9 @@ use ethers::{
     types::{Address, Bytes, U256},
 };
 use lazy_static::lazy_static;
+use log::{error, info};
 use std::str::FromStr;
 use std::sync::Arc;
-use log::{info, error};
 #[derive(Debug)]
 pub struct ModelInfo {
     pub name: String,
@@ -232,13 +232,12 @@ impl Contract {
         report_hash: [u8; 32],
     ) -> Result<(), Error> {
         let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), output_hash, report_hash);
-        let _pending_tx = tx.send().await.map_err(|e| {        
+        let _pending_tx = tx.send().await.map_err(|e| {
             error!("failed to submit inference result: {}", e.to_string());
             Error::InferenceError {
                 message: format!("failed to submit inference reuslt {}", e.to_string()),
             }
-        }
-        )?;
+        })?;
         Ok(())
     }
 
@@ -268,9 +267,7 @@ impl Contract {
         });
     }
 
-    pub async fn query_data_node_default_model(
-        data_node_id: u64,
-    ) -> Result<Option<ModelInfo>, Error> {
+    pub async fn query_data_node_default_model(data_node_id: u64) -> Result<ModelInfo, Error> {
         let models: Vec<ModelDetails> = MODEL_CONTRACT
             .get_models_by_data_node_id(data_node_id.into())
             .call()
@@ -279,13 +276,13 @@ impl Contract {
                 message: e.to_string(),
             })?;
         if models.is_empty() {
-            return Ok(None);
+            panic!("the data node doesn't have any models");
         } else {
-            return Ok(Some(ModelInfo {
+            return Ok(ModelInfo {
                 name: models[0].model_name.clone(),
                 cid: models[0].cid.clone(),
                 id: models[0].model_id.try_into().unwrap(),
-            }));
+            });
         }
     }
 
@@ -312,7 +309,15 @@ impl Contract {
         .concat();
         let message = utils::keccak256(&encoded_data);
         let signature = WALLET.sign_message(message).await.unwrap().to_vec();
-        info!("request id {}, token address {}, from {}, to {}, amount {}, signature 0x{}", request_id, token_address, from, to, amount, hex::encode(signature.clone()));
+        info!(
+            "request id {}, token address {}, from {}, to {}, amount {}, signature 0x{}",
+            request_id,
+            token_address,
+            from,
+            to,
+            amount,
+            hex::encode(signature.clone())
+        );
         let tx = TRANSFER_CONTRACT.agent_transfer(
             request_id.into(),
             token_address.parse().unwrap(),
@@ -406,9 +411,8 @@ async fn query_url() {
 
 #[tokio::test]
 async fn test_call_contract() {
-    use ethers::core::{
-        utils::{parse_units, ParseUnits},
-    };
+    use ethers::core::utils::{parse_units, ParseUnits};
+    use hex::FromHex;
     let request_id = 135;
     let token_address = "0x411A42fE3F187b778e8D2dAE41E062D3F417929a";
     let from = "0xc68884d8be3d37e2fd61837cb65bc72aa5a4ebcf";
@@ -424,7 +428,11 @@ async fn test_call_contract() {
         amount,
         Bytes::from_hex(signature).unwrap(),
     );
-    let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
-        message: format!("failed to submit inference reuslt {}", e.to_string()),
-    }).unwrap();
+    let _pending_tx = tx
+        .send()
+        .await
+        .map_err(|e| Error::InferenceError {
+            message: format!("failed to submit inference reuslt {}", e.to_string()),
+        })
+        .unwrap();
 }

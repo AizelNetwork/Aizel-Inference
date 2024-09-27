@@ -62,6 +62,9 @@ jobs:
       - name: Build Submodule
         run: docker run --rm --name aizel_face_recognition_build -v ./aizel-face-recognition:/root/aizel-face-recognition -v /opt/.m2:/root/.m2 "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-face-recognition && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
 
+      - name: TMP Build Submodule
+        run: docker run --rm --name aizel_face_recognition_build -v ./aizel-peaq-combinder:/root/aizel-peaq-combinder -v /opt/.m2:/root/.m2 "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-peaq-combinder && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
