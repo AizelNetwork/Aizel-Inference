@@ -44,7 +44,7 @@ impl LlamaServer {
             "llama cpp server model path {}",
             model_path.to_str().unwrap()
         );
-        let mut command = Command::new("python3");
+        let mut command = Command::new("/python/bin/python3");
         let mut command = command
             .arg("-m")
             .arg("llama_cpp.server")

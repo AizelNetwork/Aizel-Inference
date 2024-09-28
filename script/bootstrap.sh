@@ -9,6 +9,5 @@ ip=$(curl ifconfig.me)
 echo $ip
 ntpdate ntp.aliyun.com
 retrieve-secret
-export PATH=$PATH:/python/bin
 inference-node --ip $ip --port 8080
 sleep infinity
