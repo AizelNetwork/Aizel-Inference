@@ -60,7 +60,7 @@ RUN  mkdir -p /export/App/rank/aizel-face-model-service
 RUN  mkdir -p /export/Logs/spring-boot-admin/
 COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
 COPY ./aizel-face-recognition/target/aizel-face-recognition /export/App/rank/aizel-face-recognition 
-COPY ./aizel-peaq-combinder/target/aizel-peaq-1.0-SNAPSHOT.jar /export/App/rank/app.jar
+# COPY ./aizel-peaq-combinder/target/aizel-peaq-1.0-SNAPSHOT.jar /export/App/rank/app.jar
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
