@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y libtdx-attest-dev libsgx-dcap-quote-ver
 
 WORKDIR /python
 RUN wget https://www.python.org/ftp/python/3.8.19/Python-3.8.19.tar.xz && tar -xvf Python-3.8.19.tar.xz && cd Python-3.8.19 && ./configure --enable-optimizations --with-ssl --prefix=/python && make -j $(nproc) && make install && rm -rf /python/Python-3.8.19 /python/Python-3.8.19.tar.xz
-RUN /python/bin/pip3 install 'llama-cpp-python[server]'
+RUN CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS" /python/bin/pip3 install 'llama-cpp-python[server]'
 
 # WORKDIR /python3.7
 # RUN wget https://www.python.org/ftp/python/3.7.16/Python-3.7.16.tar.xz && tar -xvf Python-3.7.16.tar.xz && cd Python-3.7.16 && ./configure --enable-optimizations --with-ssl --prefix=/python3.7 && make -j $(nproc) && make install && rm -rf /python/Python-3.7.16 /python/Python-3.7.16.tar.xz
@@ -60,7 +60,7 @@ RUN  mkdir -p /export/App/rank/aizel-face-model-service
 RUN  mkdir -p /export/Logs/spring-boot-admin/
 COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
 COPY ./aizel-face-recognition/target/aizel-face-recognition /export/App/rank/aizel-face-recognition 
-# COPY ./aizel-peaq-combinder/target/aizel-peaq-1.0-SNAPSHOT.jar /export/App/rank/app.jar
+COPY ./aizel-peaq-combinder/target/aizel-peaq-1.0-SNAPSHOT.jar /export/App/rank/app.jar
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
