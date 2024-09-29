@@ -52,7 +52,7 @@ impl ChatClient {
 pub struct TransferInfo {
     pub to: String,
     pub token: String,
-    pub amount: u64,
+    pub amount: f64,
 }
 
 pub struct TransferAgentClient {}
