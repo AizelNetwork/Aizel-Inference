@@ -210,7 +210,7 @@ impl MinioClient {
 async fn test_public_s3() {
     use crate::node::config::models_dir;
     let client = MinioClient::get_public_client().await;
-    println!("{}", client.bucket_exists(INPUT_BUCKET).await.unwrap());
+    println!("{}", client.bucket_exists("input-bucket").await.unwrap());
     let model_info = Contract::query_model(2).await.unwrap();
     let client = MinioClient::get_data_client().await;
     let model_id = model_info.id;

@@ -436,3 +436,28 @@ async fn test_call_contract() {
         })
         .unwrap();
 }
+
+#[tokio::test]
+async fn query_model() {
+    use crate::node::config::ml_models_dir;
+    use crate::s3_minio::client::MinioClient;
+    use std::fs::File;
+    use flate2::read::GzDecoder;
+    use tar::Archive;
+    let model_info = Contract::query_model(6).await.unwrap();
+    println!("{:?}", model_info);
+    let model_path = ml_models_dir().join(&model_info.name);    
+    let client = MinioClient::get_data_client().await;
+    client
+        .download_model(
+            "models",
+            &model_info.cid,
+            &model_path,
+        )
+        .await.unwrap();
+
+    let tar_gz = File::open(model_path).unwrap();
+    let tar = GzDecoder::new(tar_gz);
+    let mut archive = Archive::new(tar);
+    archive.unpack(ml_models_dir()).unwrap();
+}

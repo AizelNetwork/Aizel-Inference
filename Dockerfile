@@ -55,12 +55,11 @@ RUN echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
 
 RUN apt-get update && apt-get -y install libtdx-attest ntpdate strace libgomp1 && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN  mkdir -p /export/App/rank/
+RUN mkdir /root/aizel
 RUN  mkdir -p /export/App/rank/aizel-face-model-service
 RUN  mkdir -p /export/Logs/spring-boot-admin/
-COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
-COPY ./aizel-face-recognition/target/aizel-face-recognition /export/App/rank/aizel-face-recognition 
-COPY ./aizel-peaq-combinder/target/aizel-peaq-1.0-SNAPSHOT.jar /export/App/rank/app.jar
+# COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
+COPY ./aizel-face-recognition/face-recognition/target/aizel-face-recognition /root/aizel/aizel-face-recognition 
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
@@ -68,7 +67,7 @@ COPY --from=builder2 /app/retrieve-secret /usr/local/bin/retrieve-secret
 COPY --from=builder /python /python
 # COPY --from=builder /python3.7 /python3.7
 COPY ./script/bootstrap.sh bootstrap.sh
-RUN mkdir /root/aizel
+
 EXPOSE 8080
 EXPOSE 9081
 EXPOSE 8090

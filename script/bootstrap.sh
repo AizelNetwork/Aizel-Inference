@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # run face recognition
-nohup bash /export/App/rank/aizel-face-recognition/bin/start.sh 2>&1 &
+# nohup bash /export/App/rank/aizel-face-recognition/bin/start.sh 2>&1 &
 # nohup /python3.7/bin/python3 /export/App/rank/aizel-face-model-service/main.py > face_model_service.log 2>&1 & 
 
 nohup java -jar /export/App/rank/app.jar > combinder.log 2>&1 &

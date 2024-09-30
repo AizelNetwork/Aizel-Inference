@@ -5,8 +5,9 @@ use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
 use super::aizel::{UploadOutputRequest, UploadOutputResponse};
-use super::config::{AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, INPUT_BUCKET, TRANSFER_AGENT_ID};
-use super::model_client::{ChatClient, TransferAgentClient};
+use super::config::{AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, INPUT_BUCKET, TRANSFER_AGENT_ID, ENERGE_MODEL_ID};
+use super::model_client::{ChatClient, TransferAgentClient, MlEnergeClient};
+use super::model_server::MlServer;
 use crate::chains::contract::Contract;
 use crate::chains::contract::ModelInfo;
 use crate::chains::ethereum::pubkey_to_address;
@@ -80,6 +81,10 @@ impl AizelInference {
             sender: tx,
         };
         let mut llama_cpp_server = LlamaServer::new(&default_model_info).await.unwrap();
+        // TODO:  
+        let tmp_model = Contract::query_model(ENERGE_MODEL_ID).await.unwrap();
+        let mut ml_server = MlServer::new(&tmp_model).await.unwrap();
+
         tokio::spawn(async move {
             let agent = AttestationAgent::new()
                 .await
@@ -92,12 +97,22 @@ impl AizelInference {
                 let model_info = Contract::query_model(req.model_id).await;
                 match model_info {
                     Ok(model_info) => {
-                        match llama_cpp_server.run(&model_info).await {
-                            Err(e) => {
-                                error!("failed to run model {}", e.to_string());
-                                continue;
+                        if model_info.id == ENERGE_MODEL_ID {
+                            match ml_server.run(&model_info).await {
+                                Err(e) => {
+                                    error!("failed to run model {}", e.to_string());
+                                    continue;
+                                }
+                                Ok(()) => {}
                             }
-                            Ok(()) => {}
+                        } else {
+                            match llama_cpp_server.run(&model_info).await {
+                                Err(e) => {
+                                    error!("failed to run model {}", e.to_string());
+                                    continue;
+                                }
+                                Ok(()) => {}
+                            }
                         }
                         match AizelInference::process_inference(&req, secret.clone(), &agent).await
                         {
@@ -195,6 +210,8 @@ impl AizelInference {
         let output = if req.model_id == TRANSFER_AGENT_ID {
             let from = pubkey_to_address(&req.user_pk).unwrap();
             TransferAgentClient::transfer(req.request_id, decrypted_input, from).await?
+        } else if req.model_id == ENERGE_MODEL_ID {
+            MlEnergeClient::request(decrypted_input).await?
         } else {
             ChatClient::request(decrypted_input).await?
         };
