@@ -98,7 +98,7 @@ pub fn ml_models_dir() -> PathBuf {
 }
 
 pub fn ml_models_start_script() -> PathBuf {
-    root_dir().join(ML_DIR).join("bin")
+    root_dir().join(ML_DIR).join("bin").join("start.sh")
 }
 
 pub fn prepare_config() -> Result<AizelConfig, Error> {
