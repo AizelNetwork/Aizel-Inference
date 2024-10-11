@@ -1,4 +1,4 @@
-use super::config::{models_dir, root_dir, LLAMA_SERVER_PORT, MODEL_BUCKET, TRANSFER_AGENT_ID, ml_models_dir, ml_models_start_script};
+use super::config::{models_dir, root_dir, LLAMA_SERVER_PORT, MODEL_BUCKET, TRANSFER_AGENT_ID, ml_models_dir, ml_models_start_script, ml_model_config_with_id, ml_model_config};
 use crate::chains::contract::ModelInfo;
 use crate::s3_minio::client::MinioClient;
 use common::error::Error;
@@ -109,10 +109,21 @@ pub struct MlServer {
 }
 
 impl MlServer {
+    fn save_model_config(model_info: &ModelInfo) -> Result<(), Error> {
+        fs::copy(ml_model_config(), ml_model_config_with_id(model_info.id)).unwrap();
+        Ok(())
+    }
+
+    fn recover_model_config(model_info: &ModelInfo) -> Result<(), Error> {
+        fs::copy(ml_model_config_with_id(model_info.id), ml_model_config()).unwrap();
+        Ok(())
+    }
+
     async fn prepare_model(model_info: &ModelInfo) -> Result<(), Error> {
         let model_path = ml_models_dir().join(&model_info.name);
     
         if model_path.exists() {
+            let _ = MlServer::recover_model_config(model_info);
             return Ok(());
         }
 
@@ -133,6 +144,7 @@ impl MlServer {
         let tar = GzDecoder::new(tar_gz);
         let mut archive = Archive::new(tar);
         archive.unpack(ml_models_dir()).unwrap();
+        let _ = MlServer::save_model_config(model_info);
         Ok(())
     }
 

@@ -6,7 +6,7 @@ use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
 use super::aizel::{UploadOutputRequest, UploadOutputResponse};
 use super::config::{AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, INPUT_BUCKET, TRANSFER_AGENT_ID, ENERGE_MODEL_ID};
-use super::model_client::{ChatClient, TransferAgentClient, MlEnergeClient};
+use super::model_client::{ChatClient, TransferAgentClient, MlClient};
 use super::model_server::MlServer;
 use crate::chains::contract::Contract;
 use crate::chains::contract::ModelInfo;
@@ -97,7 +97,7 @@ impl AizelInference {
                 let model_info = Contract::query_model(req.model_id).await;
                 match model_info {
                     Ok(model_info) => {
-                        if model_info.id == ENERGE_MODEL_ID {
+                        if req.req_type == aizel::InferenceType::AizelModel as i32 {
                             match ml_server.run(&model_info).await {
                                 Err(e) => {
                                     error!("failed to run model {}", e.to_string());
@@ -114,7 +114,7 @@ impl AizelInference {
                                 Ok(()) => {}
                             }
                         }
-                        match AizelInference::process_inference(&req, secret.clone(), &agent).await
+                        match AizelInference::process_inference(&req, secret.clone(), &agent, &model_info).await
                         {
                             Ok(output) => {
                                 info!("successfully processed the request {}", req.request_id);
@@ -202,18 +202,21 @@ impl AizelInference {
         req: &InferenceRequest,
         secret: Secret,
         agent: &AttestationAgent,
+        model_info: &ModelInfo
     ) -> Result<InferenceOutput, Error> {
         let client: std::sync::Arc<MinioClient> = MinioClient::get_public_client().await;
         let user_input = client.get_inputs(INPUT_BUCKET, &req.input).await?;
         let decrypted_input = AizelInference::decrypt(&secret, &user_input.input)?;
 
-        let output = if req.model_id == TRANSFER_AGENT_ID {
-            let from = pubkey_to_address(&req.user_pk).unwrap();
-            TransferAgentClient::transfer(req.request_id, decrypted_input, from).await?
-        } else if req.model_id == ENERGE_MODEL_ID {
-            MlEnergeClient::request(decrypted_input).await?
+        let output = if req.req_type == aizel::InferenceType::AizelModel as i32 {
+            MlClient::request(decrypted_input, model_info.name.clone()).await?
         } else {
-            ChatClient::request(decrypted_input).await?
+            if req.model_id == TRANSFER_AGENT_ID {
+                let from = pubkey_to_address(&req.user_pk).unwrap();
+                TransferAgentClient::transfer(req.request_id, decrypted_input, from).await?
+            } else {
+                ChatClient::request(decrypted_input).await?
+            }
         };
 
         let encrypted_output: String = AizelInference::encrypt(&output, &req.user_pk)?;

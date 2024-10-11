@@ -13,7 +13,7 @@ pub const DEFAULT_MODEL_DIR: &str = "models";
 pub const DEFAULT_AIZEL_CONFIG: &str = "aizel_config.yml";
 pub const ML_DIR: &str = "aizel-face-recognition";
 pub const ML_MODEL_DIR: &str = "conf";
-
+pub const ML_MODEL_CONFIG: &str = "models.json";
 pub const DEFAULT_MODEL: &str = "llama2_7b_chat.Q4_0.gguf-1.0";
 
 pub const INPUT_BUCKET: &str = "users-input";
@@ -95,6 +95,14 @@ pub fn node_key_path() -> PathBuf {
 
 pub fn ml_models_dir() -> PathBuf {
     root_dir().join(ML_DIR).join(ML_MODEL_DIR)
+}
+
+pub fn ml_model_config() -> PathBuf {
+    root_dir().join(ML_DIR).join(ML_MODEL_DIR).join(ML_MODEL_CONFIG)
+}
+
+pub fn ml_model_config_with_id(id: u64) -> PathBuf {
+    root_dir().join(ML_DIR).join(ML_MODEL_DIR).join(format!("{}_{}", ML_MODEL_CONFIG, id))
 }
 
 pub fn ml_models_start_script() -> PathBuf {

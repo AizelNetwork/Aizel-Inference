@@ -444,7 +444,7 @@ async fn query_model() {
     use std::fs::File;
     use flate2::read::GzDecoder;
     use tar::Archive;
-    let model_info = Contract::query_model(6).await.unwrap();
+    let model_info = Contract::query_model(8).await.unwrap();
     println!("{:?}", model_info);
     let model_path = ml_models_dir().join(&model_info.name);    
     let client = MinioClient::get_data_client().await;
