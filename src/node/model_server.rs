@@ -162,12 +162,23 @@ impl MlServer {
         Ok(child)
     }
 
-    pub async fn new(model_info: &ModelInfo) -> Result<Self, Error> {
-        let child = MlServer::run_ml_server(model_info).await?;
-        Ok(Self {
-            child,
-            current_model: model_info.id,
-        })
+    pub async fn new(model_info: &Option<ModelInfo>) -> Result<Self, Error> {
+        match model_info {
+            Some(m) => {
+                let child = MlServer::run_ml_server(m).await?;
+                Ok(Self {
+                    child,
+                    current_model: m.id,
+                })
+            }
+            None => {
+                let child = Command::new("sleep").arg("infinity").spawn().expect("Failed to run sleep command");
+                Ok(Self {
+                    child,
+                    current_model: 0,
+                })
+            }
+        }
     }
 
     pub async fn run(&mut self, model_info: &ModelInfo) -> Result<(), Error> {
@@ -192,4 +203,12 @@ impl MlServer {
         }
         Ok(())
     }
+}
+
+
+#[tokio::test]
+async fn request_ml_model() {
+    use crate::chains::contract::Contract;
+    let model_info = Contract::query_model(9).await.unwrap();
+    MlServer::prepare_model(&model_info).await.unwrap();
 }

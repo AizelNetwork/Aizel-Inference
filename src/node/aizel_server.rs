@@ -81,9 +81,7 @@ impl AizelInference {
             sender: tx,
         };
         let mut llama_cpp_server = LlamaServer::new(&default_model_info).await.unwrap();
-        // TODO:  
-        let tmp_model = Contract::query_model(ENERGE_MODEL_ID).await.unwrap();
-        let mut ml_server = MlServer::new(&tmp_model).await.unwrap();
+        let mut ml_server = MlServer::new(&None).await.unwrap();
 
         tokio::spawn(async move {
             let agent = AttestationAgent::new()
