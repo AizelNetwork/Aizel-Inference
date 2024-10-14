@@ -116,17 +116,19 @@ impl AizelInference {
                         {
                             Ok(output) => {
                                 info!("successfully processed the request {}", req.request_id);
-                                // submit output to gate server
-                                let (output_hash, report_hash) =
+                                tokio::spawn(async move {
+                                    // submit output to gate server
+                                    let (output_hash, report_hash) =
                                     AizelInference::submit_output(output.output, output.report)
                                         .await
                                         .unwrap();
-                                let _ = Contract::submit_inference(
-                                    req.request_id,
-                                    output_hash,
-                                    report_hash,
-                                )
-                                .await;
+                                    let _ = Contract::submit_inference(
+                                        req.request_id,
+                                        output_hash,
+                                        report_hash,
+                                    )
+                                    .await;
+                                });
                             }
                             Err(e) => {
                                 error!(
