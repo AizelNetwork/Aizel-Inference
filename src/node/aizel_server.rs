@@ -4,8 +4,8 @@ mod aizel {
 use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
-use super::aizel::{UploadOutputRequest, UploadOutputResponse};
-use super::config::{AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, INPUT_BUCKET, TRANSFER_AGENT_ID, ENERGE_MODEL_ID};
+use super::aizel::UploadOutputRequest;
+use super::config::{AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, INPUT_BUCKET, TRANSFER_AGENT_ID};
 use super::model_client::{ChatClient, TransferAgentClient, MlClient};
 use super::model_server::MlServer;
 use crate::chains::contract::Contract;

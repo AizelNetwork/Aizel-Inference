@@ -42,7 +42,7 @@ jsonwebtoken = "9"
 aes-gcm = "0.10"
 dirs = "5.0"
 common = { path = "./common"}
-minio = { git = "https://github.com/minio/minio-rs" }
+minio = { git = "https://github.com/HowHsu/minio-rs" }
 num_cpus = "1.16"
 encoding_rs = "0.8.34"
 ethers = { version = "2.0.14", features = ["ws"] }

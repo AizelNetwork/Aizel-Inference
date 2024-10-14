@@ -6,7 +6,7 @@ use ethers::core::{
 };
 use ethers::{
     contract::abigen,
-    middleware::SignerMiddleware,
+    middleware::{SignerMiddleware, NonceManagerMiddleware},
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
     types::{Address, Bytes, U256},
@@ -207,6 +207,7 @@ impl Contract {
             data_node_id.into(),
             tee_type.into(),
         );
+        let tx = tx.nonce::<U256>(NONCE_MANAGER.next());
         let tx = tx.value::<U256>(stake_amount.into());
         let _ = tx.send().await.map_err(|e| Error::RegistrationError {
             message: e.to_string(),
@@ -231,7 +232,8 @@ impl Contract {
         output_hash: [u8; 32],
         report_hash: [u8; 32],
     ) -> Result<(), Error> {
-        let tx = &INFERENCE_CONTRACT.submit_inference(request_id.into(), output_hash, report_hash);
+        let tx = INFERENCE_CONTRACT.submit_inference(request_id.into(), output_hash, report_hash);
+        let tx = tx.nonce::<U256>(NONCE_MANAGER.next());
         let _pending_tx = tx.send().await.map_err(|e| {
             error!("failed to submit inference result: {}", e.to_string());
             Error::InferenceError {
@@ -326,6 +328,7 @@ impl Contract {
             amount,
             Bytes::from_iter(signature),
         );
+        let tx = tx.nonce::<U256>(NONCE_MANAGER.next());
         let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
             message: format!("failed to submit inference reuslt {}", e.to_string()),
         })?;
@@ -341,6 +344,12 @@ lazy_static! {
             .unwrap()
             .with_chain_id(AIZEL_CONFIG.chain_id)
     };
+
+    pub static ref NONCE_MANAGER: NonceManagerMiddleware<Provider<Http>> = {
+        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
+        NonceManagerMiddleware::new(provider, WALLET.address())
+    };
+
     pub static ref INFERENCE_CONTRACT: InferenceContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
         let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
         let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
