@@ -12,7 +12,7 @@ node_name: test_node
 node_bio: test_bio
 data_node_id: 0
 initial_stake: 200000000000
-wallet_sk: 0x647fcb49c378e22dc51a5fd43b3b76b28f00f605191ed7d419e1080854711cae
+wallet_sk: 0x258377e67b0e7c42731712a235525c43f03d5e54703150a39836d54466085623
 within_tee: true
 gate_url: http://34.142.156.174:7878
 public_data_node: http://10.148.0.3:9112
