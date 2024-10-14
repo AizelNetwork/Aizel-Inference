@@ -3,7 +3,7 @@ use super::{
     aizel_server::AizelInference,
     config::{models_dir, node_key_path, root_dir, AIZEL_CONFIG},
 };
-use crate::chains::contract::Contract;
+use crate::chains::contract::{Contract, NONCE_MANAGER};
 use crate::{
     crypto::secret::{Export, Secret},
     tee::attestation::AttestationAgent,
@@ -47,6 +47,7 @@ impl Node {
     }
 
     pub async fn register(&self) -> Result<(), Error> {
+        let _ = NONCE_MANAGER.initialize_nonce(None).await;
         let tee_type = self.agent.get_tee_type().unwrap();
         if AIZEL_CONFIG.within_tee {
             info!(
