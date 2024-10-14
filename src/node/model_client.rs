@@ -178,8 +178,8 @@ impl TransferAgentClient {
 struct MlRequest {
     #[serde(rename = "modelName")]
     pub model_name: String,
-    #[serde(rename = "reqestData")]
-    pub request_data: String 
+    #[serde(rename = "requestData")]
+    pub request_data: Vec<String>
 }
 
 pub struct MlClient {}
@@ -189,7 +189,7 @@ impl MlClient {
         let client = reqwest::Client::new();
         let req = MlRequest {
             model_name,
-            request_data: input
+            request_data: vec![input]
         };
         let res = client.post(format!("{}/{}", AIZEL_MODEL_SERVICE, "model/predict"))
             .header("Content-Type", "application/json")
