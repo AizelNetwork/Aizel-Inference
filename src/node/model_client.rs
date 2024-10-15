@@ -186,10 +186,18 @@ pub struct MlClient {}
 
 impl MlClient {
     pub async fn request(input: String, model_name: String) -> Result<String, Error> {
+        let request_data = match serde_json::from_str::<Vec<String>>(&input) {
+            Ok(i) => {
+                i
+            },
+            Err(_) => {
+                vec![input]
+            }
+        };
         let client = reqwest::Client::new();
         let req = MlRequest {
             model_name,
-            request_data: vec![input]
+            request_data
         };
         let res = client.post(format!("{}/{}", AIZEL_MODEL_SERVICE, "model/predict"))
             .header("Content-Type", "application/json")
@@ -209,4 +217,15 @@ impl MlClient {
 async fn request_ml_model() {
     let output = MlClient::request("Breaking: Tesla recalls all Model X cars . details on show now TSLA".to_string(), "peaq_model".to_string()).await.unwrap();
     println!("{}", output);
+}
+
+
+#[tokio::test]
+async fn test_batch_input() {
+    let test_string = vec!["hello, world", "false dasdasdx"];
+    let output = serde_json::to_string(&test_string).unwrap();
+    println!("{}", output);
+    let input_string = "[\"hello, world\", \"hello\"]";
+    let parsed_input: Vec<String> = serde_json::from_str(input_string).unwrap();
+    println!("{:?}", parsed_input);
 }
