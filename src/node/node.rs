@@ -48,7 +48,6 @@ impl Node {
 
     pub async fn register(&self) -> Result<(), Error> {
         let _ = NONCE_MANAGER.initialize_nonce(None).await;
-        let _ = NONCE_MANAGER.next();
         let tee_type = self.agent.get_tee_type().unwrap();
         if AIZEL_CONFIG.within_tee {
             info!(
