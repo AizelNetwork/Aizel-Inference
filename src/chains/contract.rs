@@ -207,7 +207,9 @@ impl Contract {
             data_node_id.into(),
             tee_type.into(),
         );
-        let tx = tx.nonce::<U256>(NONCE_MANAGER.next());
+        let nonce = NONCE_MANAGER.next();
+        info!("register nonce {}", nonce);
+        let tx = tx.nonce::<U256>(nonce);
         let tx = tx.value::<U256>(stake_amount.into());
         let _ = tx.send().await.map_err(|e| Error::RegistrationError {
             message: e.to_string(),
@@ -233,7 +235,9 @@ impl Contract {
         report_hash: [u8; 32],
     ) -> Result<(), Error> {
         let tx = INFERENCE_CONTRACT.submit_inference(request_id.into(), output_hash, report_hash);
-        let tx = tx.nonce::<U256>(NONCE_MANAGER.next());
+        let nonce = NONCE_MANAGER.next();
+        info!("submit inference request id {}, nonce {}", request_id, nonce);
+        let tx = tx.nonce::<U256>(nonce);
         let _pending_tx = tx.send().await.map_err(|e| {
             error!("failed to submit inference result: {}", e.to_string());
             Error::InferenceError {
