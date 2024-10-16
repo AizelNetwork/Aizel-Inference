@@ -71,5 +71,5 @@ COPY ./script/bootstrap.sh bootstrap.sh
 EXPOSE 8080
 EXPOSE 9081
 EXPOSE 8090
-LABEL "tee.launch_policy.allow_env_override"="CONFIG-NAME"
+LABEL "tee.launch_policy.allow_env_override"="CONFIG_NAME"
 ENTRYPOINT ["/bin/bash", "bootstrap.sh"]
