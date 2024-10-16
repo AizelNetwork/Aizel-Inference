@@ -75,7 +75,7 @@ func main() {
 	if metadata.OnGCE() {
 		config := os.Getenv("CONFIG_NAME")
 		if config == "" {
-			log.Fatalf("failed to config environment ")
+			log.Fatalf("failed to get config environment ")
 		}
 		GetSecret(config)
 	} else if OnAliCloud() {
