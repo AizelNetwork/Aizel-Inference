@@ -71,4 +71,5 @@ COPY ./script/bootstrap.sh bootstrap.sh
 EXPOSE 8080
 EXPOSE 9081
 EXPOSE 8090
+LABEL "tee.launch_policy.allow_cmd_override"="true"
 ENTRYPOINT ["/bin/bash", "bootstrap.sh"]

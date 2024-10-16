@@ -12,7 +12,7 @@ gcloud compute instances create inference-demo \
     --image-project=confidential-space-images \
     --image-family=confidential-space-debug \
     --service-account=991449629434-compute@developer.gserviceaccount.com \
-    --metadata="^~^tee-image-reference=asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.0.1~tee-container-log-redirect=true" \
+    --metadata="^~^tee-image-reference=asia-docker.pkg.dev/bionic-mercury-421809/aizel/aizel_inference:0.0.1~tee-container-log-redirect=true~tee-env-CONFIG_NAME='aizel-config'" \
     --machine-type=n2d-standard-16 \
     --min-cpu-platform="AMD Milan" \
     --boot-disk-size=50 \
