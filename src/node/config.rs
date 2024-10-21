@@ -11,7 +11,9 @@ pub const NODE_KEY_FILENAME: &str = "node_key.json";
 pub const DEFAULT_ROOT_DIR: &str = "aizel";
 pub const DEFAULT_MODEL_DIR: &str = "models";
 pub const DEFAULT_AIZEL_CONFIG: &str = "aizel_config.yml";
-
+pub const ML_DIR: &str = "aizel-face-recognition";
+pub const ML_MODEL_DIR: &str = "conf";
+pub const ML_MODEL_CONFIG: &str = "models.json";
 pub const DEFAULT_MODEL: &str = "llama2_7b_chat.Q4_0.gguf-1.0";
 
 pub const INPUT_BUCKET: &str = "users-input";
@@ -23,9 +25,9 @@ pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 
 pub const LLAMA_SERVER_PORT: u16 = 8888;
 
-pub const FACE_MODEL_SERVICE: &str = "http://localhost:9081/aizel/face/validate";
+pub const AIZEL_MODEL_SERVICE: &str = "http://localhost:9081/aizel";
 pub const TRANSFER_AGENT_ID: u64 = 2;
-
+pub const ENERGE_MODEL_ID: u64 = 6;
 lazy_static! {
     pub static ref COIN_ADDRESS_MAPPING: HashMap<String, String> = {
         let mut coin_address_mapping = HashMap::new();
@@ -89,6 +91,22 @@ pub fn models_dir() -> PathBuf {
 
 pub fn node_key_path() -> PathBuf {
     root_dir().join(NODE_KEY_FILENAME)
+}
+
+pub fn ml_models_dir() -> PathBuf {
+    root_dir().join(ML_DIR).join(ML_MODEL_DIR)
+}
+
+pub fn ml_model_config() -> PathBuf {
+    root_dir().join(ML_DIR).join(ML_MODEL_DIR).join(ML_MODEL_CONFIG)
+}
+
+pub fn ml_model_config_with_id(id: u64) -> PathBuf {
+    root_dir().join(ML_DIR).join(ML_MODEL_DIR).join(format!("{}_{}", ML_MODEL_CONFIG, id))
+}
+
+pub fn ml_models_start_script() -> PathBuf {
+    root_dir().join(ML_DIR).join("bin").join("start.sh")
 }
 
 pub fn prepare_config() -> Result<AizelConfig, Error> {

@@ -62,6 +62,9 @@ jobs:
       - name: Build Submodule
         run: docker run --rm --name aizel_face_recognition_build -v ./aizel-face-recognition:/root/aizel-face-recognition -v /opt/.m2:/root/.m2 "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-face-recognition && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
 
+      - name: TMP Build Submodule
+        run: docker run --rm --name aizel_face_recognition_build -v ./aizel-peaq-combinder:/root/aizel-peaq-combinder -v /opt/.m2:/root/.m2 "${{ env.SUBMODULE_BUILD_IMAGE_TAG }}" sh -c "cd /root/aizel-peaq-combinder && /usr/local/maven/bin/mvn clean install -D maven.test.skip=true"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -81,4 +84,4 @@ jobs:
         run: gcloud compute instances delete inference-demo --zone asia-southeast1-b --quiet || true
 
       - name: Create confidential space
-        run: gcloud compute instances create inference-demo --confidential-compute --shielded-secure-boot --scopes=cloud-platform --zone=asia-southeast1-b --image-project=confidential-space-images --image-family=confidential-space-debug --service-account=991449629434-compute@developer.gserviceaccount.com --metadata="^~^tee-image-reference=${{ env.IMAGE_TAG }}~tee-container-log-redirect=true" --machine-type=n2d-standard-16 --min-cpu-platform="AMD Milan" --boot-disk-size=50 --tags=will-dev
+        run: gcloud compute instances create inference-demo --confidential-compute --shielded-secure-boot --scopes=cloud-platform --zone=asia-southeast1-b --image-project=confidential-space-images --image-family=confidential-space-debug --service-account=991449629434-compute@developer.gserviceaccount.com --metadata="^~^tee-image-reference=${{ env.IMAGE_TAG }}~tee-container-log-redirect=true~tee-env-CONFIG_NAME=aizel-config" --machine-type=n2d-standard-16 --min-cpu-platform="AMD Milan" --boot-disk-size=200 --tags=will-dev

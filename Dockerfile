@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y libtdx-attest-dev libsgx-dcap-quote-ver
 
 WORKDIR /python
 RUN wget https://www.python.org/ftp/python/3.8.19/Python-3.8.19.tar.xz && tar -xvf Python-3.8.19.tar.xz && cd Python-3.8.19 && ./configure --enable-optimizations --with-ssl --prefix=/python && make -j $(nproc) && make install && rm -rf /python/Python-3.8.19 /python/Python-3.8.19.tar.xz
-RUN /python/bin/pip3 install 'llama-cpp-python[server]'
+RUN CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS" /python/bin/pip3 install 'llama-cpp-python[server]'
 
 # WORKDIR /python3.7
 # RUN wget https://www.python.org/ftp/python/3.7.16/Python-3.7.16.tar.xz && tar -xvf Python-3.7.16.tar.xz && cd Python-3.7.16 && ./configure --enable-optimizations --with-ssl --prefix=/python3.7 && make -j $(nproc) && make install && rm -rf /python/Python-3.7.16 /python/Python-3.7.16.tar.xz
@@ -55,11 +55,11 @@ RUN echo "ca_directory=/etc/ssl/certs" >> /etc/wgetrc && \
 
 RUN apt-get update && apt-get -y install libtdx-attest ntpdate strace libgomp1 && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN  mkdir -p /export/App/rank/
+RUN mkdir /root/aizel
 RUN  mkdir -p /export/App/rank/aizel-face-model-service
 RUN  mkdir -p /export/Logs/spring-boot-admin/
-COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
-COPY ./aizel-face-recognition/target/aizel-face-recognition /export/App/rank/aizel-face-recognition 
+# COPY ./aizel-face-model-service /export/App/rank/aizel-face-model-service
+COPY ./aizel-face-recognition/face-recognition/target/aizel-face-recognition /root/aizel/aizel-face-recognition 
 WORKDIR /app
 COPY --from=builder /app/target/release/inference-client /usr/local/bin/inference-client
 COPY --from=builder /app/target/release/inference-node /usr/local/bin/inference-node
@@ -67,7 +67,9 @@ COPY --from=builder2 /app/retrieve-secret /usr/local/bin/retrieve-secret
 COPY --from=builder /python /python
 # COPY --from=builder /python3.7 /python3.7
 COPY ./script/bootstrap.sh bootstrap.sh
-RUN mkdir /root/aizel
+
 EXPOSE 8080
 EXPOSE 9081
+EXPOSE 8090
+LABEL "tee.launch_policy.allow_env_override"="CONFIG_NAME"
 ENTRYPOINT ["/bin/bash", "bootstrap.sh"]

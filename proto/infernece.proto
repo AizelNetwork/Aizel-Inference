@@ -4,7 +4,7 @@ package aizel;
 
 enum InferenceType {
     llama = 0;
-    auto_transfer = 1;
+    aizel_model = 1;
 }
 
 // InferenceRequest is the request for inference.
@@ -13,6 +13,7 @@ message InferenceRequest {
     uint64 model_id = 2;
     string input = 3;
     string user_pk = 4;
+    InferenceType req_type = 5;
 }
 
 // InferenceResponse is the response for inference.

@@ -73,7 +73,11 @@ func GetSecret(skName string) {
 
 func main() {
 	if metadata.OnGCE() {
-		GetSecret("aizel-config-peaq")
+		config := os.Getenv("CONFIG_NAME")
+		if config == "" {
+			log.Fatalf("failed to get config environment ")
+		}
+		GetSecret(config)
 	} else if OnAliCloud() {
 		resp, err := http.Get("http://100.100.100.200/latest/meta-data/region-id")
 		if err != nil {
