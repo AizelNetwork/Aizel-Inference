@@ -156,8 +156,7 @@ impl AizelInference {
             .await
             .map_err(|_| Error::InferenceError {
                 message: "failed to connect to gate server".to_string(),
-            })
-            .unwrap();
+            })?;
         let response = client
             .upload_output(UploadOutputRequest { output, report })
             .await

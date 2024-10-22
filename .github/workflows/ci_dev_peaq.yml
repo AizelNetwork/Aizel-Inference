@@ -22,7 +22,7 @@ env:
   REPOSITORY_REGION: asia
 
   IMAGE: aizel_inference
-  IMAGE_VERSION: 0.0.2
+  IMAGE_VERSION: 0.0.1
 
   SUBMODULE_BUILD_IMAGE_TAG: aizel-face-recognition-build:0.0.1
   
