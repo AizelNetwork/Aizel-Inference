@@ -55,10 +55,9 @@ impl Node {
     }
 
     pub async fn register(&self) -> Result<(), Error> {
-        let f: Vec<_> = NONCE_MANAGERS.iter().map(|(_, n)| async move{
-            n.initialize_nonce(None).await
-        }).collect();
-        let _ = join_all(f);
+        for (_, n) in NONCE_MANAGERS.iter() {
+            let _ = n.initialize_nonce(None).await;
+        }
         let tee_type = self.agent.get_tee_type().unwrap();
         if AIZEL_CONFIG.within_tee {
             info!(
@@ -92,7 +91,6 @@ impl Node {
     }
 
     pub async fn run_server(&self) -> Result<(), Error> {
-        std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
         let aizel_inference_service =
             AizelInference::new(self.secret.clone()).await;
         self.register().await?;

@@ -6,7 +6,7 @@ networks: ["aizel", "peaq", "avax"]
 public_data_node_url: http://10.148.0.3:9112
 gate_url: http://34.142.156.174:7878
 config_server_url: http://34.124.144.235:8081
-wallet_sk: 0x258377e67b0e7c42731712a235525c43f03d5e54703150a39836d54466085623
+wallet_sk: 0xab7eb4571e3d9db740fd41443b577db0b3a1181e0de217ea14d2dc0b5e0f911e
 node_name: test_node
 node_bio: test_bio
 initial_stake: 200000000000

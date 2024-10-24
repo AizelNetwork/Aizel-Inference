@@ -82,7 +82,6 @@ impl TransferAgentClient {
     }
 
     pub async fn request(input: String, network: &str) -> Result<TransferInfo, Error> {
-        std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
         let mut properties = HashMap::new();
         properties.insert(
             "to".to_string(),
