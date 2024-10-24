@@ -5,7 +5,7 @@ use super::aizel::gate_service_client::GateServiceClient;
 use super::aizel::inference_server::Inference;
 use super::aizel::{InferenceRequest, InferenceResponse};
 use super::aizel::UploadOutputRequest;
-use super::config::{AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, INPUT_BUCKET, TRANSFER_AGENT_ID};
+use super::config::{data_node_id, AIZEL_CONFIG, DEFAULT_CHANNEL_SIZE, INPUT_BUCKET, TRANSFER_AGENT_ID};
 use super::model_client::{ChatClient, TransferAgentClient, MlClient};
 use super::model_server::MlServer;
 use crate::chains::contract::Contract;
@@ -27,9 +27,10 @@ use secp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::{Request, Response, Status};
+use std::collections::HashMap;
 pub struct AizelInference {
     pub secret: Secret,
-    sender: Sender<InferenceRequest>,
+    senders: HashMap<String, Sender<InferenceRequest>>,
 }
 
 type Hash = [u8; 32];
@@ -63,7 +64,8 @@ impl Inference for AizelInference {
         request: Request<InferenceRequest>,
     ) -> Result<Response<InferenceResponse>, Status> {
         let req = request.into_inner();
-        self.sender.send(req).await.map_err(|e| {
+        let sender = self.senders.get(&req.network).ok_or(Status::internal(format!("unkown network argument {}", req.network)))?;
+        sender.send(req).await.map_err(|e| {
             Status::internal(format!("failed to process request {}", e.to_string()))
         })?;
         Ok(Response::new(InferenceResponse {
@@ -73,81 +75,92 @@ impl Inference for AizelInference {
 }
 
 impl AizelInference {
-    pub async fn new(secret: Secret, default_model_info: ModelInfo) -> Self {
-        let (tx, mut rx) = channel::<InferenceRequest>(DEFAULT_CHANNEL_SIZE);
+    pub async fn new(secret: Secret) -> Self {
+        let (txs, rxs): (Vec<_>, Vec<_>) = AIZEL_CONFIG.networks.iter().map(|n| {
+            let (tx, rx) = channel::<InferenceRequest>(DEFAULT_CHANNEL_SIZE);
+            ((n.clone(), tx), (n.clone(), rx) )
+        }).unzip();
 
         let aizel_inference: AizelInference = Self {
             secret: secret.clone(),
-            sender: tx,
+            senders: txs.into_iter().map(|x| {
+                x
+            }).collect(),
         };
-        let mut llama_cpp_server = LlamaServer::new(&default_model_info).await.unwrap();
-        let mut ml_server = MlServer::new(&None).await.unwrap();
 
-        tokio::spawn(async move {
-            let agent = AttestationAgent::new()
-                .await
-                .map_err(|e| {
-                    error!("failed to create attestation agent {}", e);
-                    e
-                })
-                .unwrap();
-            while let Some(req) = rx.recv().await {
-                let model_info = Contract::query_model(req.model_id).await;
-                match model_info {
-                    Ok(model_info) => {
-                        if req.req_type == aizel::InferenceType::AizelModel as i32 {
-                            match ml_server.run(&model_info).await {
-                                Err(e) => {
-                                    error!("failed to run model {}", e.to_string());
-                                    continue;
+        for (network, mut rx) in rxs {
+            
+            let data_node_id = data_node_id(&network).unwrap();
+            let default_model = Contract::query_data_node_default_model(data_node_id, &network).await.unwrap();
+            let mut llama_cpp_server = LlamaServer::new(&default_model).await.unwrap();
+            let mut ml_server = MlServer::new(&None).await.unwrap();
+            let secret = secret.clone();
+            tokio::spawn(async move {
+                let agent = AttestationAgent::new()
+                    .await
+                    .map_err(|e| {
+                        error!("failed to create attestation agent {}", e);
+                        e
+                    })
+                    .unwrap();
+                while let Some(req) = rx.recv().await {
+                    let model_info = Contract::query_model(req.model_id, &req.network).await;
+                    match model_info {
+                        Ok(model_info) => {
+                            if req.req_type == aizel::InferenceType::AizelModel as i32 {
+                                match ml_server.run(&model_info).await {
+                                    Err(e) => {
+                                        error!("failed to run model {}", e.to_string());
+                                        continue;
+                                    }
+                                    Ok(()) => {}
                                 }
-                                Ok(()) => {}
-                            }
-                        } else {
-                            match llama_cpp_server.run(&model_info).await {
-                                Err(e) => {
-                                    error!("failed to run model {}", e.to_string());
-                                    continue;
+                            } else {
+                                match llama_cpp_server.run(&model_info).await {
+                                    Err(e) => {
+                                        error!("failed to run model {}", e.to_string());
+                                        continue;
+                                    }
+                                    Ok(()) => {}
                                 }
-                                Ok(()) => {}
                             }
-                        }
-                        match AizelInference::process_inference(&req, secret.clone(), &agent, &model_info).await
-                        {
-                            Ok(output) => {
-                                info!("successfully processed the request {}", req.request_id);
-                                tokio::spawn(async move {
-                                    // submit output to gate server
-                                    let (output_hash, report_hash) =
-                                    AizelInference::submit_output(output.output, output.report)
-                                        .await
-                                        .unwrap();
-                                    let _ = Contract::submit_inference(
+                            match AizelInference::process_inference(&req, secret.clone(), &agent, &model_info).await
+                            {
+                                Ok(output) => {
+                                    info!("successfully processed the request {}", req.request_id);
+                                    tokio::spawn(async move {
+                                        // submit output to gate server
+                                        let (output_hash, report_hash) =
+                                        AizelInference::submit_output(output.output, output.report)
+                                            .await
+                                            .unwrap();
+                                        let _ = Contract::submit_inference(
+                                            req.request_id,
+                                            output_hash,
+                                            report_hash,
+                                            &req.network
+                                        )
+                                        .await;
+                                    });
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "failed to process the request {}: {}",
                                         req.request_id,
-                                        output_hash,
-                                        report_hash,
-                                    )
-                                    .await;
-                                });
-                            }
-                            Err(e) => {
-                                error!(
-                                    "failed to process the request {}: {}",
-                                    req.request_id,
-                                    e.to_string()
-                                );
-                                AizelInference::handle_error(&req, e, &agent).await;
-                            }
-                        };
-                    }
-                    Err(e) => {
-                        error!("failed to query model from contract {}", e.to_string());
-                        AizelInference::handle_error(&req, e, &agent).await;
+                                        e.to_string()
+                                    );
+                                    AizelInference::handle_error(&req, e, &agent).await;
+                                }
+                            };
+                        }
+                        Err(e) => {
+                            error!("failed to query model from contract {}", e.to_string());
+                            AizelInference::handle_error(&req, e, &agent).await;
+                        }
                     }
                 }
-            }
-        });
-
+            });
+        }
         aizel_inference
     }
 
@@ -194,7 +207,7 @@ impl AizelInference {
 
         let report_hash: Digest = AizelInference::hash(&report);
         let _ = AizelInference::submit_output(encrypted_output, report).await;
-        let _ = Contract::submit_inference(req.request_id, output_hash.0, report_hash.0).await;
+        let _ = Contract::submit_inference(req.request_id, output_hash.0, report_hash.0, &req.network).await;
     }
 
     async fn process_inference(
@@ -212,9 +225,9 @@ impl AizelInference {
         } else {
             if req.model_id == TRANSFER_AGENT_ID {
                 let from = pubkey_to_address(&req.user_pk).unwrap();
-                TransferAgentClient::transfer(req.request_id, decrypted_input, from).await?
+                TransferAgentClient::transfer(req.request_id, decrypted_input, from, &req.network).await?
             } else {
-                ChatClient::request(decrypted_input).await?
+                ChatClient::request(decrypted_input, &req.network).await?
             }
         };
 

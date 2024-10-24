@@ -35,6 +35,8 @@ pub enum Error {
     InvalidArgumentError { argument: String, message: String },
     #[error("ContractError: 'message'")]
     ContractError { message: String },
+    #[error("NetworkConfigNotFoundError: 'network' not found")]
+    NetworkConfigNotFoundError { network: String },
 }
 
 #[derive(Error, Debug)]

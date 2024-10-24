@@ -42,7 +42,7 @@ jsonwebtoken = "9"
 aes-gcm = "0.10"
 dirs = "5.0"
 common = { path = "./common"}
-minio = { git = "https://github.com/HowHsu/minio-rs" }
+minio = { git = "https://github.com/HowHsu/minio-rs", branch = "dev" }
 num_cpus = "1.16"
 encoding_rs = "0.8.34"
 ethers = { version = "2.0.14", features = ["ws"] }
@@ -58,6 +58,7 @@ hyper-util = "0.1.7"
 http-body-util = "0.1"
 tar = "0.4"
 flate2 = "1.0"
+futures = "0.3.31"
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }
 

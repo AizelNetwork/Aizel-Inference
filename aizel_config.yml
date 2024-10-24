@@ -1,18 +1,13 @@
 ---
-chain_id: 1281
-endpoint: http://34.124.144.235:9944
-inference_contract: 0x313bE302AB078e3207f74559d63eF316c0B0670D
-inference_registry_contract: 0xeDAcF93Fdb89e1eC1339f634DBACAF13349C32AC
-data_registry_contract: 0x091127641258C02F771AD849FE1a1d0a4665387C
-model_contract: 0x71dDC9354996C63b0890C162A61b06a38DA73d00
-transfer_contract: 0x90cDdb34B3b79d769FfDF69b78480026fB66356b
 minio_account: aizel_admin_key
 minio_password: aizel_admin_pwd
+data_nodes: [0,0]
+networks: ["aizel", "peaq"]
+public_data_node_url: http://10.148.0.3:9112
+gate_url: http://34.142.156.174:7878
+config_server_url: http://34.124.144.235:8081
+wallet_sk: 0x258377e67b0e7c42731712a235525c43f03d5e54703150a39836d54466085623
 node_name: test_node
 node_bio: test_bio
-data_node_id: 0
 initial_stake: 200000000000
-wallet_sk: 0x258377e67b0e7c42731712a235525c43f03d5e54703150a39836d54466085623
 within_tee: true
-gate_url: http://34.142.156.174:7878
-public_data_node: http://10.148.0.3:9112

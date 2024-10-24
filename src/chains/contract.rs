@@ -1,4 +1,4 @@
-use crate::node::config::AIZEL_CONFIG;
+use crate::node::config::{AIZEL_CONFIG, NETWORK_CONFIGS};
 use common::error::Error;
 use ethers::core::{
     abi::{self, Token},
@@ -9,17 +9,19 @@ use ethers::{
     middleware::{SignerMiddleware, NonceManagerMiddleware},
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
-    types::{Address, Bytes, U256},
+    types::{Address, Bytes, U256, H160},
 };
 use lazy_static::lazy_static;
 use log::{error, info};
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 use std::sync::Arc;
+
 #[derive(Debug)]
 pub struct ModelInfo {
     pub name: String,
     pub cid: String,
     pub id: u64,
+    pub network: String
 }
 
 abigen!(
@@ -189,7 +191,16 @@ abigen!(
 
 pub struct Contract {}
 
+lazy_static! {
+    
+}
+
 impl Contract {
+    pub fn get_nonce(network: &str) -> Result<U256, Error> {
+        let nonce_manager = NONCE_MANAGERS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        Ok(nonce_manager.next())
+    }
+
     pub async fn register(
         name: String,
         bio: String,
@@ -198,8 +209,10 @@ impl Contract {
         data_node_id: u64,
         tee_type: u32,
         stake_amount: u64,
+        network: &str,
     ) -> Result<(), Error> {
-        let tx = INFERENCE_REGISTRY_CONTRACT.register_node(
+        let contract = INFERENCE_REGISTRY_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        let tx = contract.register_node(
             name,
             bio,
             url,
@@ -207,7 +220,7 @@ impl Contract {
             data_node_id.into(),
             tee_type.into(),
         );
-        let nonce = NONCE_MANAGER.next();
+        let nonce = Self::get_nonce(network)?;
         info!("register nonce {}", nonce);
         let tx = tx.nonce::<U256>(nonce);
         let tx = tx.value::<U256>(stake_amount.into());
@@ -217,8 +230,9 @@ impl Contract {
         Ok(())
     }
 
-    pub async fn query_data_node_url(data_node_id: u64) -> Result<String, Error> {
-        let data_node_url: String = DATA_REGISTRY_CONTRACT
+    pub async fn query_data_node_url(data_node_id: u64, network: &str) -> Result<String, Error> {
+        let contract = DATA_REGISTRY_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        let data_node_url: String = contract
             .get_url(data_node_id.into())
             .call()
             .await
@@ -233,10 +247,12 @@ impl Contract {
         request_id: u64,
         output_hash: [u8; 32],
         report_hash: [u8; 32],
+        network: &str
     ) -> Result<(), Error> {
-        let tx = INFERENCE_CONTRACT.submit_inference(request_id.into(), output_hash, report_hash);
-        let nonce = NONCE_MANAGER.next();
-        info!("submit inference request id {}, nonce {}", request_id, nonce);
+        let contract = INFERENCE_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        let tx = contract.submit_inference(request_id.into(), output_hash, report_hash);
+        let nonce: U256 = Self::get_nonce(network)?;
+        info!("submit inference: network {} request id {}, nonce {}", network, request_id, nonce);
         let tx = tx.nonce::<U256>(nonce);
         let _pending_tx = tx.send().await.map_err(|e| {
             error!("failed to submit inference result: {}", e.to_string());
@@ -247,8 +263,9 @@ impl Contract {
         Ok(())
     }
 
-    pub async fn query_public_key_exist(public_key: String) -> Result<bool, Error> {
-        let exist: bool = INFERENCE_REGISTRY_CONTRACT
+    pub async fn query_public_key_exist(public_key: String, network: &str) -> Result<bool, Error> {
+        let contract = INFERENCE_REGISTRY_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        let exist: bool = contract
             .pubkey_exists(public_key)
             .call()
             .await
@@ -258,8 +275,9 @@ impl Contract {
         return Ok(exist);
     }
 
-    pub async fn query_model(model_id: u64) -> Result<ModelInfo, Error> {
-        let model: ModelDetails = MODEL_CONTRACT
+    pub async fn query_model(model_id: u64, network: &str) -> Result<ModelInfo, Error> {
+        let contract = MODEL_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        let model: ModelDetails = contract
             .get_model_details(model_id.into())
             .call()
             .await
@@ -270,11 +288,13 @@ impl Contract {
             name: model.model_name,
             cid: model.cid,
             id: model_id,
+            network: network.to_string()
         });
     }
 
-    pub async fn query_data_node_default_model(data_node_id: u64) -> Result<ModelInfo, Error> {
-        let models: Vec<ModelDetails> = MODEL_CONTRACT
+    pub async fn query_data_node_default_model(data_node_id: u64, network: &str) -> Result<ModelInfo, Error> {
+        let contract = MODEL_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        let models: Vec<ModelDetails> = contract
             .get_models_by_data_node_id(data_node_id.into())
             .call()
             .await
@@ -288,6 +308,7 @@ impl Contract {
                 name: models[0].model_name.clone(),
                 cid: models[0].cid.clone(),
                 id: models[0].model_id.try_into().unwrap(),
+                network: network.to_string()
             });
         }
     }
@@ -298,6 +319,7 @@ impl Contract {
         from: String,
         to: String,
         amount: U256,
+        network: &str
     ) -> Result<(), Error> {
         // signature
         let encoded_data = [
@@ -314,9 +336,14 @@ impl Contract {
         ]
         .concat();
         let message = utils::keccak256(&encoded_data);
-        let signature = WALLET.sign_message(message).await.unwrap().to_vec();
+        let chain_id = NETWORK_CONFIGS.get().unwrap().iter().find(|n| {
+            n.network == network
+        }).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?.chain_id;
+        let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(chain_id);
+        let signature = wallet.sign_message(message).await.unwrap().to_vec();
         info!(
-            "request id {}, token address {}, from {}, to {}, amount {}, signature 0x{}",
+            "network {}: request id {}, token address {}, from {}, to {}, amount {}, signature 0x{}",
+            network,
             request_id,
             token_address,
             from,
@@ -324,7 +351,8 @@ impl Contract {
             amount,
             hex::encode(signature.clone())
         );
-        let tx = TRANSFER_CONTRACT.agent_transfer(
+        let contract = TRANSFER_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        let tx = contract.agent_transfer(
             request_id.into(),
             token_address.parse().unwrap(),
             from.parse().unwrap(),
@@ -332,7 +360,7 @@ impl Contract {
             amount,
             Bytes::from_iter(signature),
         );
-        let tx = tx.nonce::<U256>(NONCE_MANAGER.next());
+        let tx = tx.nonce::<U256>(Self::get_nonce(network)?);
         let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
             message: format!("failed to submit inference reuslt {}", e.to_string()),
         })?;
@@ -341,85 +369,76 @@ impl Contract {
 }
 
 lazy_static! {
-    pub static ref WALLET: LocalWallet = {
-        AIZEL_CONFIG
-            .wallet_sk
-            .parse::<LocalWallet>()
-            .unwrap()
-            .with_chain_id(AIZEL_CONFIG.chain_id)
+    pub static ref NONCE_MANAGERS: HashMap<String, NonceManagerMiddleware<Provider<Http>>> = {
+        NETWORK_CONFIGS.get().unwrap().iter().map(|c| {
+            let provider = Provider::<Http>::try_from(c.rpc_url.clone()).unwrap();
+            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
+            (c.network.clone(), NonceManagerMiddleware::new(provider, wallet.address()))
+        }).collect()
     };
 
-    pub static ref NONCE_MANAGER: NonceManagerMiddleware<Provider<Http>> = {
-        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
-        NonceManagerMiddleware::new(provider, WALLET.address())
+    pub static ref INFERENCE_CONTRACTS: HashMap<String, InferenceContract<SignerMiddleware<Provider<Http>, LocalWallet>>> = {
+        NETWORK_CONFIGS.get().unwrap().iter().map(|c| {
+            let provider = Provider::<Http>::try_from(c.rpc_url.clone()).unwrap();
+            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
+            let signer = Arc::new(SignerMiddleware::new(provider, wallet));
+            let address = c.contracts.iter().find(|a| {
+                a.name == "INFERENCE"
+            }).unwrap().address;
+            (c.network.clone(), InferenceContract::new(address, signer))
+        }).collect()
     };
 
-    pub static ref INFERENCE_CONTRACT: InferenceContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
-        let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        InferenceContract::new(
-            AIZEL_CONFIG.inference_contract.parse::<Address>().unwrap(),
-            signer,
-        )
+    pub static ref DATA_REGISTRY_CONTRACTS: HashMap<String, DataRegistryContract<SignerMiddleware<Provider<Http>, LocalWallet>>> = {
+        NETWORK_CONFIGS.get().unwrap().iter().map(|c| {
+            let provider = Provider::<Http>::try_from(c.rpc_url.clone()).unwrap();
+            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
+            let signer = Arc::new(SignerMiddleware::new(provider, wallet));
+            let address = c.contracts.iter().find(|a| {
+                a.name == "DATA_NODE"
+            }).unwrap().address;
+            (c.network.clone(), DataRegistryContract::new(address, signer))
+        }).collect()
     };
-    pub static ref DATA_REGISTRY_CONTRACT: DataRegistryContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
-        let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        DataRegistryContract::new(
-            AIZEL_CONFIG
-                .data_registry_contract
-                .parse::<Address>()
-                .unwrap(),
-            signer,
-        )
-    };
-    pub static ref INFERENCE_REGISTRY_CONTRACT: InferenceRegistryContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
-        let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        InferenceRegistryContract::new(
-            AIZEL_CONFIG
-                .inference_registry_contract
-                .parse::<Address>()
-                .unwrap(),
-            signer,
-        )
-    };
-    pub static ref MODEL_CONTRACT: ModelContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
-        let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        ModelContract::new(
-            AIZEL_CONFIG.model_contract.parse::<Address>().unwrap(),
-            signer,
-        )
-    };
-    pub static ref TRANSFER_CONTRACT: TransferContract<SignerMiddleware<Provider<Http>, LocalWallet>> = {
-        let provider = Provider::<Http>::try_from(AIZEL_CONFIG.endpoint.clone()).unwrap();
-        let signer = Arc::new(SignerMiddleware::new(provider, WALLET.clone()));
-        TransferContract::new(
-            AIZEL_CONFIG.transfer_contract.parse::<Address>().unwrap(),
-            signer,
-        )
-    };
-}
 
-#[tokio::test]
-async fn query_url() {
-    std::env::set_var(
-        "ENDPOINT",
-        "https://sepolia.infura.io/v3/250605a02ea74576bb2ab22f863a0ff8",
-    );
-    std::env::set_var(
-        "DATA_REGISTRY_CONTRACT",
-        "0x078ccaf6d3e1a3f37513158f4f944ef0936424a5",
-    );
-    std::env::set_var("CHAIN_ID", "11155111");
-    let data_id: u64 = 1;
-    let url: String = DATA_REGISTRY_CONTRACT
-        .get_url(data_id.into())
-        .call()
-        .await
-        .unwrap();
-    println!("URL: {}", url);
+    pub static ref INFERENCE_REGISTRY_CONTRACTS: HashMap<String, InferenceRegistryContract<SignerMiddleware<Provider<Http>, LocalWallet>>> = {
+        NETWORK_CONFIGS.get().unwrap().iter().map(|c| {
+            let provider = Provider::<Http>::try_from(c.rpc_url.clone()).unwrap();
+            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
+            let signer = Arc::new(SignerMiddleware::new(provider, wallet));
+            let address = c.contracts.iter().find(|a| {
+                a.name == "INFERENCE_NODE"
+            }).unwrap().address;
+            (c.network.clone(), InferenceRegistryContract::new(address, signer))
+        }).collect()
+    };
+
+    pub static ref MODEL_CONTRACTS: HashMap<String, ModelContract<SignerMiddleware<Provider<Http>, LocalWallet>>> = {
+        NETWORK_CONFIGS.get().unwrap().iter().map(|c| {
+            let provider = Provider::<Http>::try_from(c.rpc_url.clone()).unwrap();
+            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
+            let signer = Arc::new(SignerMiddleware::new(provider, wallet));
+            let address = c.contracts.iter().find(|a| {
+                a.name == "MODEL"
+            }).unwrap().address;
+            (c.network.clone(), ModelContract::new(address, signer))
+        }).collect()
+    };
+
+    pub static ref TRANSFER_CONTRACTS: HashMap<String, TransferContract<SignerMiddleware<Provider<Http>, LocalWallet>>> = {
+        NETWORK_CONFIGS.get().unwrap().iter().map(|c| {
+            let provider = Provider::<Http>::try_from(c.rpc_url.clone()).unwrap();
+            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
+            let signer = Arc::new(SignerMiddleware::new(provider, wallet));
+            let address = match c.contracts.iter().find(|a| {
+                a.name == "MODEL"
+            }) {
+                Some(c) => c.address,
+                None => H160::zero()
+            };
+            (c.network.clone(), TransferContract::new(address, signer))
+        }).collect()
+    };
 }
 
 #[tokio::test]
@@ -433,7 +452,7 @@ async fn test_call_contract() {
     let pu: ParseUnits = parse_units(10, 18).unwrap();
     let amount = U256::from(pu);
     let signature = "82c1f5687c4f0353e36b1d735ebb9ce35f0646cf0d0674e3aae5bbb35b7175b15a6491b712689e11e6b7a559f09f6db85042c18358a25d07b0eba9cc110d1d881b";
-    let tx = TRANSFER_CONTRACT.agent_transfer(
+    let tx = TRANSFER_CONTRACTS.get("aizel").unwrap().agent_transfer(
         request_id.into(),
         token_address.parse().unwrap(),
         from.parse().unwrap(),
@@ -457,10 +476,10 @@ async fn query_model() {
     use std::fs::File;
     use flate2::read::GzDecoder;
     use tar::Archive;
-    let model_info = Contract::query_model(9).await.unwrap();
+    let model_info = Contract::query_model(1, "aizel").await.unwrap();
     println!("{:?}", model_info);
     let model_path = ml_models_dir().join(&model_info.name);    
-    let client = MinioClient::get_data_client().await;
+    let client = MinioClient::get_data_client("aizel").await;
     client
         .download_model(
             "models",

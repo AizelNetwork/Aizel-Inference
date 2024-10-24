@@ -1,4 +1,4 @@
-use super::config::{COIN_ADDRESS_MAPPING, AIZEL_MODEL_SERVICE};
+use super::config::{llama_server_port, AIZEL_MODEL_SERVICE, COIN_ADDRESS_MAPPING};
 use crate::chains::contract::Contract;
 use common::error::Error;
 use ethers::core::utils::{parse_units, ParseUnits};
@@ -17,10 +17,8 @@ pub trait ModelClient: Send + Sync {
 pub struct ChatClient {}
 
 impl ChatClient {
-    pub async fn request(input: String) -> Result<String, Error> {
-        std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
-        let client = OpenAIClient::new(String::new());
-
+    pub async fn request(input: String, network: &str) -> Result<String, Error> {
+        let client = OpenAIClient::new_with_endpoint(format!("http://localhost:{}/v1", llama_server_port(network)?), String::new());
         let req = ChatCompletionRequest::new(
             String::new(),
             vec![chat_completion::ChatCompletionMessage {
@@ -58,19 +56,14 @@ pub struct TransferInfo {
 pub struct TransferAgentClient {}
 
 impl TransferAgentClient {
-    pub async fn transfer(request_id: u64, input: String, from: String) -> Result<String, Error> {
-        let transfer_info = TransferAgentClient::request(input).await?;
-        let token_address = COIN_ADDRESS_MAPPING.get(&transfer_info.token);
-        if token_address.is_none() {
-            return Err(Error::InferenceError {
-                message: "failed to transfer, token address is unkown".to_string(),
-            });
-        }
+    pub async fn transfer(request_id: u64, input: String, from: String, network: &str) -> Result<String, Error> {
+        let transfer_info = TransferAgentClient::request(input, network).await?;
+        let token_address = COIN_ADDRESS_MAPPING.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?.get(&transfer_info.token).ok_or(Error::InferenceError { message: format!("failed to transfer, token {} is unkown", &transfer_info.token) })?;
         let pu: ParseUnits = parse_units(transfer_info.amount, 18).unwrap();
         let amount = U256::from(pu);
         let output = format!(
             "token {}, transfer {} from {} to {}",
-            token_address.unwrap(),
+            token_address,
             amount,
             from,
             transfer_info.to
@@ -78,16 +71,17 @@ impl TransferAgentClient {
         info!("transfer agent output {}", output);
         Contract::transfer(
             request_id,
-            token_address.unwrap().clone(),
+            token_address.clone(),
             from,
             transfer_info.to,
             amount,
+            network
         )
         .await?;
         Ok(output)
     }
 
-    pub async fn request(input: String) -> Result<TransferInfo, Error> {
+    pub async fn request(input: String, network: &str) -> Result<TransferInfo, Error> {
         std::env::set_var("OPENAI_API_BASE", "http://localhost:8888/v1");
         let mut properties = HashMap::new();
         properties.insert(
@@ -114,7 +108,7 @@ impl TransferAgentClient {
                 ..Default::default()
             }),
         );
-        let client = OpenAIClient::new(String::new());
+        let client = OpenAIClient::new_with_endpoint(format!("http://localhost:{}/v1", llama_server_port(network)?), String::new());
         let req = ChatCompletionRequest::new(
             String::new(),
             vec![chat_completion::ChatCompletionMessage {
@@ -220,12 +214,18 @@ async fn request_ml_model() {
 }
 
 
+#[tokio::test] 
+async fn test_chat_client() {
+    println!("{:?}", ChatClient::request("what's bit coin?".to_string(), "aizel").await);
+    println!("{:?}", ChatClient::request("what's bit coin?".to_string(), "peaq").await);
+}
+
 #[tokio::test]
 async fn test_batch_input() {
     let test_string = vec!["hello, world", "false dasdasdx"];
     let output = serde_json::to_string(&test_string).unwrap();
     println!("{}", output);
-    let input_string = "[\"hello, world\", \"hello\"]";
+    let input_string: &str = "[\"hello, world\", \"hello\"]";
     let parsed_input: Vec<String> = serde_json::from_str(input_string).unwrap();
     println!("{:?}", parsed_input);
 }

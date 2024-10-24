@@ -1,4 +1,4 @@
-use super::config::{models_dir, root_dir, LLAMA_SERVER_PORT, MODEL_BUCKET, TRANSFER_AGENT_ID, ml_models_dir, ml_models_start_script, ml_model_config_with_id, ml_model_config};
+use super::config::{models_dir, root_dir, MODEL_BUCKET, TRANSFER_AGENT_ID, ml_models_dir, ml_models_start_script, ml_model_config_with_id, ml_model_config, llama_server_port, logs_dir};
 use crate::chains::contract::ModelInfo;
 use crate::s3_minio::client::MinioClient;
 use common::error::Error;
@@ -21,17 +21,18 @@ pub struct LlamaServer {
 
 impl LlamaServer {
     async fn prepare_model(model_info: &ModelInfo) -> Result<(), Error> {
-        let model_path = models_dir().join(&model_info.name);
+        let network = &model_info.network;
+        let model_path = models_dir(network).join(&model_info.name);
     
         if model_path.exists() {
             return Ok(());
         }
-        let client = MinioClient::get_data_client().await;
+        let client = MinioClient::get_data_client(network).await;
         client
             .download_model(
                 MODEL_BUCKET,
                 &model_info.cid,
-                &models_dir().join(&model_info.name),
+                &models_dir(network).join(&model_info.name),
             )
             .await?;
         Ok(())
@@ -39,14 +40,17 @@ impl LlamaServer {
 
     async fn run_llama_server(model_info: &ModelInfo) -> Result<Child, Error> {
         LlamaServer::prepare_model(model_info).await?;
-        let llama_server_output = fs::File::create(root_dir().join("llama_stdout.txt")).unwrap();
-        let llama_server_error = fs::File::create(root_dir().join("llama_stderr.txt")).unwrap();
-        let model_path = models_dir().join(&model_info.name);
+        let network = &model_info.network;
+        
+        let llama_server_output = fs::File::create(logs_dir(network).join("llama_stdout.txt")).unwrap();
+        let llama_server_error = fs::File::create(logs_dir(network).join("llama_stderr.txt")).unwrap();
+        let model_path = models_dir(network).join(&model_info.name);
         info!(
             "llama cpp server model path {}",
             model_path.to_str().unwrap()
         );
         let mut command = Command::new("/python/bin/python3");
+        let port: u16 = llama_server_port(network)?;
         let mut command = command
             .arg("-m")
             .arg("llama_cpp.server")
@@ -59,10 +63,10 @@ impl LlamaServer {
             .arg("--n_threads_batch")
             .arg("-1")
             .arg("--port")
-            .arg::<String>(format!("{}", LLAMA_SERVER_PORT))
+            .arg::<String>(format!("{}", port))
             .stdout(Stdio::from(llama_server_output))
             .stderr(Stdio::from(llama_server_error));
-
+        info!("run llama cpp server for network {} on port {}", network, port);
         if model_info.id == TRANSFER_AGENT_ID {
             command = command.arg("--chat_format").arg("chatml-function-calling");
         }
@@ -84,7 +88,7 @@ impl LlamaServer {
         if model_id == self.current_model {
             return Ok(());
         }
-        info!("change model from {} to {}", self.current_model, model_id);
+        info!("change model from {} to {} in network {}", self.current_model, model_id, model_info.network);
         match self.child.kill() {
             Ok(()) => {
                 let _ = self.child.wait();
@@ -131,7 +135,7 @@ impl MlServer {
             return Err(Error::InferenceError { message: format!("model format not supported {}", model_info.name) })
         }
 
-        let client = MinioClient::get_data_client().await;
+        let client = MinioClient::get_data_client(&model_info.network).await;
         client
             .download_model(
                 MODEL_BUCKET,
@@ -209,6 +213,6 @@ impl MlServer {
 #[tokio::test]
 async fn request_ml_model() {
     use crate::chains::contract::Contract;
-    let model_info = Contract::query_model(9).await.unwrap();
+    let model_info = Contract::query_model(9, "aizel").await.unwrap();
     MlServer::prepare_model(&model_info).await.unwrap();
 }

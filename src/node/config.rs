@@ -1,15 +1,18 @@
 use common::error::Error;
+use ethers::types::H160;
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use tokio::sync::OnceCell;
 
 pub const DEFAULT_BASE_PORT: u16 = 8080;
 
 pub const NODE_KEY_FILENAME: &str = "node_key.json";
 pub const DEFAULT_ROOT_DIR: &str = "aizel";
 pub const DEFAULT_MODEL_DIR: &str = "models";
+pub const DEFAULT_LOG_DIR: &str = "logs";
 pub const DEFAULT_AIZEL_CONFIG: &str = "aizel_config.yml";
 pub const ML_DIR: &str = "aizel-face-recognition";
 pub const ML_MODEL_DIR: &str = "conf";
@@ -29,40 +32,70 @@ pub const AIZEL_MODEL_SERVICE: &str = "http://localhost:9081/aizel";
 pub const TRANSFER_AGENT_ID: u64 = 2;
 pub const ENERGE_MODEL_ID: u64 = 6;
 lazy_static! {
-    pub static ref COIN_ADDRESS_MAPPING: HashMap<String, String> = {
-        let mut coin_address_mapping = HashMap::new();
-        coin_address_mapping.insert(
-            "USDT".to_string(),
-            "0x411A42fE3F187b778e8D2dAE41E062D3F417929a".to_string(),
-        );
-        coin_address_mapping
+    pub static ref COIN_ADDRESS_MAPPING: HashMap<String, HashMap<String, String>> = {
+        let mut res = HashMap::new();
+        {
+            let mut coin_address_mapping = HashMap::new();
+            coin_address_mapping.insert(
+                "USDT".to_string(),
+                "0x411A42fE3F187b778e8D2dAE41E062D3F417929a".to_string(),
+            );
+            res.insert("aizel".to_string(), coin_address_mapping);
+        }
+        {
+            let mut coin_address_mapping = HashMap::new();
+            coin_address_mapping.insert(
+                "USDT".to_string(),
+                "0xd312378bceFc9C05CB92bb019fbbFB9D737BE521".to_string(),
+            );
+            res.insert("avax".to_string(), coin_address_mapping);
+        }
+        res
     };
 }
 
 #[derive(Deserialize, Debug)]
 pub struct AizelConfig {
-    // contract configuration
-    pub chain_id: u64,
-    pub endpoint: String,
-    pub inference_contract: String,
-    pub inference_registry_contract: String,
-    pub data_registry_contract: String,
-    pub model_contract: String,
-    pub transfer_contract: String,
-    pub wallet_sk: String,
-    // data node configuration
+    // model data node configuration
     pub minio_account: String,
     pub minio_password: String,
-    pub data_node_id: u64,
+    pub data_nodes: Vec<u64>,
+    pub networks: Vec<String>,
+    // public data node url 
+    pub public_data_node_url: String,
+    // gate url
+    pub gate_url: String,
+    // config server url 
+    pub config_server_url: String,
+    // contract configuration
+    pub wallet_sk: String,
     // inference node configuration
     pub node_name: String,
     pub node_bio: String,
     pub initial_stake: u64,
     pub within_tee: bool,
     pub node_secret: Option<String>,
-    pub gate_url: String,
-    pub public_data_node: String,
 }
+
+#[derive(Deserialize, Debug)]
+pub struct NetworkConfig {
+    pub network_id: u64,
+    #[serde(rename = "network_name")]
+    pub network: String, 
+    #[serde(rename = "evm_chain_id")]
+    pub chain_id: u64,
+    pub rpc_url: String,
+    pub contracts: Vec<ContractConfig>
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ContractConfig {
+    #[serde(rename = "smart_contract_name")]
+    pub name: String,
+    #[serde(rename = "smart_contract_address")]
+    pub address: H160
+}
+
 pub trait FromFile<T: DeserializeOwned> {
     fn from_file<P: AsRef<Path>>(path: P) -> Result<T, String> {
         let content: String =
@@ -72,6 +105,8 @@ pub trait FromFile<T: DeserializeOwned> {
 }
 
 impl FromFile<AizelConfig> for AizelConfig {}
+
+pub static NETWORK_CONFIGS: OnceCell<Vec<NetworkConfig>> = OnceCell::const_new();
 
 lazy_static! {
     pub static ref AIZEL_CONFIG: AizelConfig = prepare_config().unwrap();
@@ -85,8 +120,12 @@ pub fn config_path() -> PathBuf {
     root_dir().join(DEFAULT_AIZEL_CONFIG)
 }
 
-pub fn models_dir() -> PathBuf {
-    root_dir().join(DEFAULT_MODEL_DIR)
+pub fn models_dir(network: &str) -> PathBuf {
+    root_dir().join(DEFAULT_MODEL_DIR).join(network)
+}
+
+pub fn logs_dir(network: &str) -> PathBuf {
+    root_dir().join(DEFAULT_LOG_DIR).join(network)
 }
 
 pub fn node_key_path() -> PathBuf {
@@ -117,10 +156,41 @@ pub fn prepare_config() -> Result<AizelConfig, Error> {
     )
 }
 
+pub fn data_node_id(network: &str) -> Result<u64, Error> {
+    let network_id = AIZEL_CONFIG.networks.iter().position(|x| {
+        *x == network
+    }).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+    Ok(AIZEL_CONFIG.data_nodes[network_id])
+}
+
+pub fn llama_server_port(network: &str) -> Result<u16, Error> {
+    let network_id = AIZEL_CONFIG.networks.iter().position(|x| {
+        x == network
+    }).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })? as u16;
+    Ok(LLAMA_SERVER_PORT + network_id)
+}
+
+pub async fn initialize_network_configs() -> Result<Vec<NetworkConfig>, Error> {
+    let client = reqwest::Client::new();
+    let res = client.get(format!("{}/{}", AIZEL_CONFIG.config_server_url, "api/v1/networks")).send().await.map_err(|e| {
+        Error::InferenceError { message: format!("failed to request config server {}", e.to_string()) }
+    })?;
+    let output = res.text().await.map_err(|e| {
+        Error::InferenceError { message: format!("failed to get config {}", e.to_string()) }
+    })?;
+    Ok(serde_json::from_str(&output).unwrap())
+}
+
 #[test]
 fn test_aizel_config() {
     println!(
         "{:?}",
         AizelConfig::from_file("/home/jiangyi/aizel/aizel_config.yml").unwrap()
     );
+}
+
+#[tokio::test]
+async fn test_query_config() {
+    let networks: Vec<NetworkConfig> = initialize_network_configs().await.unwrap();
+    println!("{:?}", networks);
 }

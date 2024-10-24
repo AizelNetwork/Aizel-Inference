@@ -1,4 +1,4 @@
-use crate::chains::contract::Contract;
+use crate::{chains::contract::Contract, node::config::data_node_id};
 use crate::node::config::AIZEL_CONFIG;
 use common::error::Error;
 use log::{error, info};
@@ -18,11 +18,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::OnceCell;
 
-// lazy_static! {
-//     static ref MINIO_CLIENT: MinioClient = MinioClient::new();
-// }
-
-static MINIO_DATA_NODE_CLIENT: OnceCell<Arc<MinioClient>> = OnceCell::const_new();
 static MINIO_PUBLIC_NODE_CLIENT: OnceCell<Arc<MinioClient>> = OnceCell::const_new();
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct UserInput {
@@ -37,7 +32,7 @@ impl UserInput {
 }
 
 async fn initialize(url: String, account_info: Option<(String, String)>) -> Arc<MinioClient> {
-    Arc::new(MinioClient::new(url, account_info).await)
+    Arc::new(MinioClient::new(url, account_info))
 }
 
 #[derive(Debug)]
@@ -46,7 +41,7 @@ pub struct MinioClient {
 }
 
 impl MinioClient {
-    async fn new(url: String, account_info: Option<(String, String)>) -> Self {
+    fn new(url: String, account_info: Option<(String, String)>) -> Self {
         let data_node_url = url.parse::<BaseUrl>().unwrap();
         let static_provider = match account_info {
             Some((account, password)) => StaticProvider::new(&account, &password, None),
@@ -57,29 +52,22 @@ impl MinioClient {
         MinioClient { client }
     }
 
-    pub async fn get_data_client() -> Arc<MinioClient> {
-        let data_node_url = Contract::query_data_node_url(AIZEL_CONFIG.data_node_id)
+    pub async fn get_data_client(network: &str) -> MinioClient {
+        let data_node_id = data_node_id(network).unwrap();
+        let data_node_url = Contract::query_data_node_url(data_node_id, network)
             .await
             .unwrap();
-        MINIO_DATA_NODE_CLIENT
-            .get_or_init(|| {
-                initialize(
-                    data_node_url,
-                    Some((
-                        AIZEL_CONFIG.minio_account.clone(),
-                        AIZEL_CONFIG.minio_password.clone(),
-                    )),
-                )
-            })
-            .await
-            .clone()
+        MinioClient::new(data_node_url, Some((
+            AIZEL_CONFIG.minio_account.clone(),
+            AIZEL_CONFIG.minio_password.clone(),
+        )))
     }
 
     pub async fn get_public_client() -> Arc<MinioClient> {
         MINIO_PUBLIC_NODE_CLIENT
             .get_or_init(|| {
                 initialize(
-                    AIZEL_CONFIG.public_data_node.clone(),
+                    AIZEL_CONFIG.public_data_node_url.clone(),
                     Some((
                         AIZEL_CONFIG.minio_account.clone(),
                         AIZEL_CONFIG.minio_password.clone(),
@@ -172,7 +160,7 @@ impl MinioClient {
         self.bucket_exists(bucket).await?;
         let time_start = Instant::now();
         let args: DownloadObjectArgs =
-            DownloadObjectArgs::new(bucket, model, path.to_str().unwrap()).unwrap();
+            DownloadObjectArgs::new(bucket, model, path.to_str().unwrap(), false).unwrap();
         let _ =
             self.client
                 .download_object(&args)
@@ -211,12 +199,12 @@ async fn test_public_s3() {
     use crate::node::config::models_dir;
     let client = MinioClient::get_public_client().await;
     println!("{}", client.bucket_exists("inputs-bucket").await.unwrap());
-    let model_info = Contract::query_model(9).await.unwrap();
-    let client = MinioClient::get_data_client().await;
+    let model_info = Contract::query_model(9, "aizel").await.unwrap();
+    let client = MinioClient::get_data_client("aizel").await;
     let model_name = model_info.name;
     let model_cid = model_info.cid;
     match client
-        .download_model("models", &model_cid, &models_dir().join(&model_name))
+        .download_model("models", &model_cid, &models_dir("aizel").join(&model_name))
         .await
     {
         Ok(_) => {

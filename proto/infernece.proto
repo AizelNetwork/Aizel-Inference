@@ -14,6 +14,7 @@ message InferenceRequest {
     string input = 3;
     string user_pk = 4;
     InferenceType req_type = 5;
+    string network = 6;
 }
 
 // InferenceResponse is the response for inference.

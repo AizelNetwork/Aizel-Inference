@@ -46,7 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         input: "hello ".to_string(),
         model_id: 0,
         user_pk: String::new(),
-        req_type: aizel::InferenceType::Llama as i32
+        req_type: aizel::InferenceType::Llama as i32,
+        network: "aizel".to_string()
     });
     let response = client.llama_inference(request).await?;
     let _ = response.into_inner();
