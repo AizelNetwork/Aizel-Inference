@@ -137,9 +137,9 @@ impl MlServer {
             return Ok(());
         }
 
-        if !model_info.name.ends_with("tar.gz") {
-            return Err(Error::InferenceError { message: format!("model format not supported {}", model_info.name) })
-        }
+        // if !model_info.name.ends_with("tar.gz") {
+        //     return Err(Error::InferenceError { message: format!("model format not supported {}", model_info.name) })
+        // }
 
         let client = MinioClient::get_data_client(&model_info.network).await;
         client
@@ -225,7 +225,7 @@ async fn request_ml_model() {
     use crate::node::config::{NETWORK_CONFIGS, initialize_network_configs, source_ml_models_dir, ml_dir};
     NETWORK_CONFIGS.set(initialize_network_configs().await.unwrap()).unwrap();
     println!("{:?} ", source_ml_models_dir());
-    fs::create_dir_all(ml_dir("aizel")).unwrap();
-    let model_info = Contract::query_model(9, "aizel").await.unwrap();
+    fs::create_dir_all(ml_dir("krest")).unwrap();
+    let model_info = Contract::query_model(3, "krest").await.unwrap();
     MlServer::prepare_model(&model_info).await.unwrap();
 }

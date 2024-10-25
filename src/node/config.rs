@@ -210,11 +210,10 @@ pub fn initialize_network_configs_by_file() -> Result<Vec<NetworkConfig>, Error>
 }
 
 pub async fn initialize_network_configs() -> Result<Vec<NetworkConfig>, Error> {
-    initialize_network_configs_by_file()
-    // match  initialize_network_configs_by_network().await {
-    //     Ok(r) => Ok(r),
-    //     Err(_) => initialize_network_configs_by_file()
-    // }
+    match  initialize_network_configs_by_network().await {
+        Ok(r) => Ok(r),
+        Err(_) => initialize_network_configs_by_file()
+    }
 }
 
 #[test]
