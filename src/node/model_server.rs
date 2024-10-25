@@ -42,8 +42,8 @@ impl LlamaServer {
         LlamaServer::prepare_model(model_info).await?;
         let network = &model_info.network;
         
-        let llama_server_output = fs::File::create(logs_dir(network).join("llama_stdout.txt")).unwrap();
-        let llama_server_error = fs::File::create(logs_dir(network).join("llama_stderr.txt")).unwrap();
+        let llama_server_output = fs::File::create(logs_dir(network).join(format!("llama_stdout_{}.txt", model_info.network))).unwrap();
+        let llama_server_error = fs::File::create(logs_dir(network).join(format!("llama_stderr_{}.txt", model_info.network))).unwrap();
         let model_path = models_dir(network).join(&model_info.name);
         info!(
             "llama cpp server model path {}",
@@ -161,8 +161,8 @@ impl MlServer {
     async fn run_ml_server(model_info: &ModelInfo) -> Result<Child, Error> {
         MlServer::prepare_model(&model_info).await?;
         let network = &model_info.network;
-        let ml_server_output = fs::File::create(logs_dir(network).join("ml_stdout.txt")).unwrap();
-        let ml_server_error = fs::File::create(logs_dir(network).join("ml_stderr.txt")).unwrap();
+        let ml_server_output = fs::File::create(logs_dir(network).join(format!("ml_stdout_{}.txt", model_info.network))).unwrap();
+        let ml_server_error = fs::File::create(logs_dir(network).join(format!("ml_stderr_{}.txt", model_info.network))).unwrap();
         
         let mut command: Command = Command::new("bash");
         let command = command.arg(ml_models_start_script().to_str().unwrap())
