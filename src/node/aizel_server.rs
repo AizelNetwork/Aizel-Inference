@@ -22,7 +22,7 @@ use ethers::core::{
     abi::{self, Token},
     utils,
 };
-use log::{error, info};
+use log::error;
 use secp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{channel, Sender};
@@ -127,7 +127,6 @@ impl AizelInference {
                             match AizelInference::process_inference(&req, secret.clone(), &agent, &model_info).await
                             {
                                 Ok(output) => {
-                                    info!("successfully processed the request {}", req.request_id);
                                     tokio::spawn(async move {
                                         // submit output to gate server
                                         let (output_hash, report_hash) =
@@ -221,7 +220,7 @@ impl AizelInference {
         let decrypted_input = AizelInference::decrypt(&secret, &user_input.input)?;
 
         let output = if req.req_type == aizel::InferenceType::AizelModel as i32 {
-            MlClient::request(decrypted_input, model_info.name.clone()).await?
+            MlClient::request(decrypted_input, model_info.name.clone(), &model_info.network).await?
         } else {
             if req.model_id == TRANSFER_AGENT_ID {
                 let from = pubkey_to_address(&req.user_pk).unwrap();

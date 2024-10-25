@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::sync::OnceCell;
 
@@ -14,6 +15,7 @@ pub const DEFAULT_ROOT_DIR: &str = "aizel";
 pub const DEFAULT_MODEL_DIR: &str = "models";
 pub const DEFAULT_LOG_DIR: &str = "logs";
 pub const DEFAULT_AIZEL_CONFIG: &str = "aizel_config.yml";
+pub const DEFAULT_NETWORK_CONFIG: &str = "config.json";
 pub const ML_DIR: &str = "aizel-face-recognition";
 pub const ML_MODEL_DIR: &str = "conf";
 pub const ML_MODEL_CONFIG: &str = "models.json";
@@ -27,8 +29,8 @@ pub const REPORT_BUCKET: &str = "inference-report";
 pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 
 pub const LLAMA_SERVER_PORT: u16 = 8888;
+pub const ML_SERVER_PORT: u16 = 9888;
 
-pub const AIZEL_MODEL_SERVICE: &str = "http://localhost:9081/aizel";
 pub const TRANSFER_AGENT_ID: u64 = 2;
 pub const ENERGE_MODEL_ID: u64 = 6;
 lazy_static! {
@@ -120,6 +122,10 @@ pub fn config_path() -> PathBuf {
     root_dir().join(DEFAULT_AIZEL_CONFIG)
 }
 
+pub fn network_config_path() -> PathBuf {
+    root_dir().join(DEFAULT_NETWORK_CONFIG)
+}
+
 pub fn models_dir(network: &str) -> PathBuf {
     root_dir().join(DEFAULT_MODEL_DIR).join(network)
 }
@@ -132,16 +138,24 @@ pub fn node_key_path() -> PathBuf {
     root_dir().join(NODE_KEY_FILENAME)
 }
 
-pub fn ml_models_dir() -> PathBuf {
+pub fn source_ml_models_dir() -> PathBuf {
     root_dir().join(ML_DIR).join(ML_MODEL_DIR)
 }
 
-pub fn ml_model_config() -> PathBuf {
-    root_dir().join(ML_DIR).join(ML_MODEL_DIR).join(ML_MODEL_CONFIG)
+pub fn ml_dir(network: &str) -> PathBuf {
+    root_dir().join("ml_models").join(network)
 }
 
-pub fn ml_model_config_with_id(id: u64) -> PathBuf {
-    root_dir().join(ML_DIR).join(ML_MODEL_DIR).join(format!("{}_{}", ML_MODEL_CONFIG, id))
+pub fn ml_models_dir(network: &str) -> PathBuf {
+    ml_dir(network).join(ML_MODEL_DIR)
+}
+
+pub fn ml_model_config(network: &str) -> PathBuf {
+    ml_models_dir(network).join(ML_MODEL_CONFIG)
+}
+
+pub fn ml_model_config_with_id(network: &str, id: u64) -> PathBuf {
+    ml_models_dir(network).join(format!("{}_{}", ML_MODEL_CONFIG, id))
 }
 
 pub fn ml_models_start_script() -> PathBuf {
@@ -170,7 +184,14 @@ pub fn llama_server_port(network: &str) -> Result<u16, Error> {
     Ok(LLAMA_SERVER_PORT + network_id)
 }
 
-pub async fn initialize_network_configs() -> Result<Vec<NetworkConfig>, Error> {
+pub fn ml_server_port(network: &str) -> Result<u16, Error> {
+    let network_id = AIZEL_CONFIG.networks.iter().position(|x| {
+        x == network
+    }).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })? as u16;
+    Ok(ML_SERVER_PORT + network_id)
+}
+
+pub async fn initialize_network_configs_by_network() -> Result<Vec<NetworkConfig>, Error> {
     let client = reqwest::Client::new();
     let res = client.get(format!("{}/{}", AIZEL_CONFIG.config_server_url, "api/v1/networks")).send().await.map_err(|e| {
         Error::InferenceError { message: format!("failed to request config server {}", e.to_string()) }
@@ -178,7 +199,22 @@ pub async fn initialize_network_configs() -> Result<Vec<NetworkConfig>, Error> {
     let output = res.text().await.map_err(|e| {
         Error::InferenceError { message: format!("failed to get config {}", e.to_string()) }
     })?;
-    Ok(serde_json::from_str(&output).unwrap())
+    Ok(serde_json::from_str(&output).map_err(|_| {
+        Error::InferenceError { message: "failed to parse network config".to_string() }
+    })?)
+}
+
+pub fn initialize_network_configs_by_file() -> Result<Vec<NetworkConfig>, Error> {
+    let config = fs::read_to_string(network_config_path()).map_err(|e| Error::FileError { path: network_config_path(), message: "failed to open config file".to_string() })?;
+    Ok(serde_json::from_str(&config).unwrap())
+}
+
+pub async fn initialize_network_configs() -> Result<Vec<NetworkConfig>, Error> {
+    initialize_network_configs_by_file()
+    // match  initialize_network_configs_by_network().await {
+    //     Ok(r) => Ok(r),
+    //     Err(_) => initialize_network_configs_by_file()
+    // }
 }
 
 #[test]

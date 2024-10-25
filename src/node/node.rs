@@ -1,7 +1,7 @@
 use super::aizel::inference_server::InferenceServer;
 use super::{
     aizel_server::AizelInference,
-    config::{models_dir, node_key_path, root_dir, AIZEL_CONFIG, initialize_network_configs},
+    config::{models_dir, node_key_path, root_dir, AIZEL_CONFIG, initialize_network_configs, ml_dir},
 };
 use crate::chains::contract::{Contract, NONCE_MANAGERS};
 use crate::node::config::{logs_dir, NETWORK_CONFIGS};
@@ -9,7 +9,6 @@ use crate::{
     crypto::secret::{Export, Secret},
     tee::attestation::AttestationAgent,
 };
-use futures::future::join_all;
 use common::error::Error;
 use log::{error, info};
 use std::fs;
@@ -31,6 +30,7 @@ impl Node {
         AIZEL_CONFIG.networks.iter().for_each(|network| {
             fs::create_dir_all(models_dir(network)).unwrap();
             fs::create_dir_all(logs_dir(network)).unwrap();
+            fs::create_dir_all(ml_dir(network)).unwrap();
         });
 
         let secret = match &AIZEL_CONFIG.node_secret {

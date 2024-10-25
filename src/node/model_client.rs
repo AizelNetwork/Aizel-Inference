@@ -1,4 +1,4 @@
-use super::config::{llama_server_port, AIZEL_MODEL_SERVICE, COIN_ADDRESS_MAPPING};
+use super::config::{llama_server_port, ml_server_port, COIN_ADDRESS_MAPPING};
 use crate::chains::contract::Contract;
 use common::error::Error;
 use ethers::core::utils::{parse_units, ParseUnits};
@@ -172,27 +172,19 @@ struct MlRequest {
     #[serde(rename = "modelName")]
     pub model_name: String,
     #[serde(rename = "requestData")]
-    pub request_data: Vec<String>
+    pub request_data: String
 }
 
 pub struct MlClient {}
 
 impl MlClient {
-    pub async fn request(input: String, model_name: String) -> Result<String, Error> {
-        let request_data = match serde_json::from_str::<Vec<String>>(&input) {
-            Ok(i) => {
-                i
-            },
-            Err(_) => {
-                vec![input]
-            }
-        };
+    pub async fn request(input: String, model_name: String, network: &str) -> Result<String, Error> {
         let client = reqwest::Client::new();
         let req = MlRequest {
             model_name,
-            request_data
+            request_data: input
         };
-        let res = client.post(format!("{}/{}", AIZEL_MODEL_SERVICE, "model/predict"))
+        let res = client.post(format!("http://localhost:{}/{}", ml_server_port(network)?, "aizel/model/predict"))
             .header("Content-Type", "application/json")
             .json(&req)
             .send()
@@ -208,7 +200,7 @@ impl MlClient {
 
 #[tokio::test]
 async fn request_ml_model() {
-    let output = MlClient::request("Breaking: Tesla recalls all Model X cars . details on show now TSLA".to_string(), "peaq_model".to_string()).await.unwrap();
+    let output = MlClient::request("Breaking: Tesla recalls all Model X cars . details on show now TSLA".to_string(), "peaq_model".to_string(), "aizel").await.unwrap();
     println!("{}", output);
 }
 

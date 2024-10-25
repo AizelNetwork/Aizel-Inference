@@ -478,7 +478,7 @@ async fn query_model() {
     use tar::Archive;
     let model_info = Contract::query_model(1, "aizel").await.unwrap();
     println!("{:?}", model_info);
-    let model_path = ml_models_dir().join(&model_info.name);    
+    let model_path = ml_models_dir("aizel").join(&model_info.name);    
     let client = MinioClient::get_data_client("aizel").await;
     client
         .download_model(
@@ -491,5 +491,5 @@ async fn query_model() {
     let tar_gz = File::open(model_path).unwrap();
     let tar = GzDecoder::new(tar_gz);
     let mut archive = Archive::new(tar);
-    archive.unpack(ml_models_dir()).unwrap();
+    archive.unpack(ml_models_dir("aizel")).unwrap();
 }

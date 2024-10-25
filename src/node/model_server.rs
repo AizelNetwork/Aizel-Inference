@@ -1,4 +1,4 @@
-use super::config::{models_dir, root_dir, MODEL_BUCKET, TRANSFER_AGENT_ID, ml_models_dir, ml_models_start_script, ml_model_config_with_id, ml_model_config, llama_server_port, logs_dir};
+use super::config::{llama_server_port, logs_dir, ml_model_config, ml_model_config_with_id, ml_models_dir, ml_models_start_script, ml_server_port, models_dir, root_dir, source_ml_models_dir, MODEL_BUCKET, TRANSFER_AGENT_ID};
 use crate::chains::contract::ModelInfo;
 use crate::s3_minio::client::MinioClient;
 use common::error::Error;
@@ -114,17 +114,23 @@ pub struct MlServer {
 
 impl MlServer {
     fn save_model_config(model_info: &ModelInfo) -> Result<(), Error> {
-        fs::copy(ml_model_config(), ml_model_config_with_id(model_info.id)).unwrap();
+        fs::copy(ml_model_config(&model_info.network), ml_model_config_with_id(&model_info.network, model_info.id)).unwrap();
         Ok(())
     }
 
     fn recover_model_config(model_info: &ModelInfo) -> Result<(), Error> {
-        fs::copy(ml_model_config_with_id(model_info.id), ml_model_config()).unwrap();
+        fs::copy(ml_model_config_with_id(&model_info.network, model_info.id), ml_model_config(&model_info.network)).unwrap();
         Ok(())
     }
 
     async fn prepare_model(model_info: &ModelInfo) -> Result<(), Error> {
-        let model_path = ml_models_dir().join(&model_info.name);
+        let network = &model_info.network;
+        if !ml_models_dir(network).exists() {
+            copy_dir::copy_dir(source_ml_models_dir(), ml_models_dir(network)).map_err(|e| {
+                Error::InferenceError { message: format!("failed to copy models dir {:?}", e) }
+            })?;
+        }
+        let model_path = ml_models_dir(network).join(&model_info.name);
     
         if model_path.exists() {
             let _ = MlServer::recover_model_config(model_info);
@@ -147,18 +153,21 @@ impl MlServer {
         let tar_gz = fs::File::open(model_path).unwrap();
         let tar = GzDecoder::new(tar_gz);
         let mut archive = Archive::new(tar);
-        archive.unpack(ml_models_dir()).unwrap();
+        archive.unpack(ml_models_dir(network)).unwrap();
         let _ = MlServer::save_model_config(model_info);
         Ok(())
     }
 
     async fn run_ml_server(model_info: &ModelInfo) -> Result<Child, Error> {
         MlServer::prepare_model(&model_info).await?;
-        let ml_server_output = fs::File::create(root_dir().join("ml_stdout.txt")).unwrap();
-        let ml_server_error = fs::File::create(root_dir().join("ml_stderr.txt")).unwrap();
+        let network = &model_info.network;
+        let ml_server_output = fs::File::create(logs_dir(network).join("ml_stdout.txt")).unwrap();
+        let ml_server_error = fs::File::create(logs_dir(network).join("ml_stderr.txt")).unwrap();
         
         let mut command: Command = Command::new("bash");
         let command = command.arg(ml_models_start_script().to_str().unwrap())
+            .arg(format!("{}", ml_server_port(network)?))
+            .arg(ml_models_dir(network))
             .stdout(Stdio::from(ml_server_output))
             .stderr(Stdio::from(ml_server_error));
         let child = command.spawn().expect("Failed to start Python script");
@@ -213,6 +222,10 @@ impl MlServer {
 #[tokio::test]
 async fn request_ml_model() {
     use crate::chains::contract::Contract;
+    use crate::node::config::{NETWORK_CONFIGS, initialize_network_configs, source_ml_models_dir, ml_dir};
+    NETWORK_CONFIGS.set(initialize_network_configs().await.unwrap()).unwrap();
+    println!("{:?} ", source_ml_models_dir());
+    fs::create_dir_all(ml_dir("aizel")).unwrap();
     let model_info = Contract::query_model(9, "aizel").await.unwrap();
     MlServer::prepare_model(&model_info).await.unwrap();
 }
