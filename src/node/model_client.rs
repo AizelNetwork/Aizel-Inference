@@ -178,15 +178,16 @@ struct MlRequest {
 pub struct MlClient {}
 
 impl MlClient {
-    pub async fn request(input: String, model_name: String, network: &str) -> Result<String, Error> {
+    pub async fn request(input: String, network: &str) -> Result<String, Error> {
         let client = reqwest::Client::new();
-        let req = MlRequest {
-            model_name,
-            request_data: input
-        };
+        // let req = MlRequest {
+        //     model_name,
+        //     request_data: input
+        // };
         let res = client.post(format!("http://localhost:{}/{}", ml_server_port(network)?, "aizel/model/predict"))
             .header("Content-Type", "application/json")
-            .json(&req)
+            .body(input)
+            // .json(&req)
             .send()
         .await.map_err(|e| {
             Error::InferenceError { message: format!("failed to request backend server {}", e.to_string()) }
@@ -200,7 +201,7 @@ impl MlClient {
 
 #[tokio::test]
 async fn request_ml_model() {
-    let output = MlClient::request("Breaking: Tesla recalls all Model X cars . details on show now TSLA".to_string(), "peaq_model".to_string(), "aizel").await.unwrap();
+    let output = MlClient::request("{\n        \"contents\": [\n            \"Breaking: recalls all Model X cars . details on show now \",\n            \"Breaking: Tesla recalls all Model X cars . details on show now TSLA\",\n            \"Breaking: Tesla recalls all Model X cars . details on show now TSLA\",\n            \"Breaking: Tesla recalls all Model X cars . details on show now TSLA\",\n            \"Breaking: Tesla recalls all Model X cars . details on show now TSLA\"\n        ],\n        \"includeWords\": [   \n        ],\n        \"excludeWords\": []\n    }".to_string(), "krest").await.unwrap();
     println!("{}", output);
 }
 

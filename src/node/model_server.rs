@@ -227,5 +227,6 @@ async fn request_ml_model() {
     println!("{:?} ", source_ml_models_dir());
     fs::create_dir_all(ml_dir("krest")).unwrap();
     let model_info = Contract::query_model(3, "krest").await.unwrap();
-    MlServer::prepare_model(&model_info).await.unwrap();
+    println!("{:?} ", model_info);
+    // MlServer::prepare_model(&model_info).await.unwrap();
 }

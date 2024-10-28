@@ -220,7 +220,7 @@ impl AizelInference {
         let decrypted_input = AizelInference::decrypt(&secret, &user_input.input)?;
 
         let output = if req.req_type == aizel::InferenceType::AizelModel as i32 {
-            MlClient::request(decrypted_input, model_info.name.clone(), &model_info.network).await?
+            MlClient::request(decrypted_input, &model_info.network).await?
         } else {
             if req.model_id == TRANSFER_AGENT_ID {
                 let from = pubkey_to_address(&req.user_pk).unwrap();
