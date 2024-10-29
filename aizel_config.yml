@@ -6,9 +6,9 @@ networks: ["aizel", "krest", "peaq"]
 public_data_node_url: http://10.148.0.3:9112
 gate_url: http://34.142.156.174:7878
 config_server_url: http://34.124.144.235:8081
-wallet_sk: 0xab7eb4571e3d9db740fd41443b577db0b3a1181e0de217ea14d2dc0b5e0f911e
+wallet_sk: 0x54c7a418275ced612af256817ba0cf50d18c8b3b746943c6289d7d4ced739d16
 node_name: test_node
 node_bio: test_bio
 initial_stake: 200000000000
 within_tee: true
-node_secret: 1bf69ba873c41d517cbbe574abbdd39adc0e5c3ca7dc5122313694decca4a570
+node_secret: f4c12c0b5939e7476d432fe79d8957e3b4aa5316ec5340d3f03e44ed0f9d94cc

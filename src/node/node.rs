@@ -129,3 +129,12 @@ pub fn open_or_create_secret(path: PathBuf) -> Result<Secret, Error> {
         Ok(secret)
     }
 }
+
+#[test]
+fn test_secret_pub() {
+    let secret = Secret::from_str("1bf69ba873c41d517cbbe574abbdd39adc0e5c3ca7dc5122313694decca4a570");
+    println!("{}", secret.name.encode());
+    let s = Secret::new();
+    println!("{}", s.secret.encode());
+    println!("{}", s.name.encode());
+}
