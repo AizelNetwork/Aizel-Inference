@@ -205,7 +205,7 @@ pub async fn initialize_network_configs_by_network() -> Result<Vec<NetworkConfig
 }
 
 pub fn initialize_network_configs_by_file() -> Result<Vec<NetworkConfig>, Error> {
-    let config = fs::read_to_string(network_config_path()).map_err(|e| Error::FileError { path: network_config_path(), message: "failed to open config file".to_string() })?;
+    let config = fs::read_to_string(network_config_path()).map_err(|_| Error::FileError { path: network_config_path(), message: "failed to open config file".to_string() })?;
     Ok(serde_json::from_str(&config).unwrap())
 }
 

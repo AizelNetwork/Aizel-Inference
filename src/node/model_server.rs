@@ -1,4 +1,4 @@
-use super::config::{llama_server_port, logs_dir, ml_model_config, ml_model_config_with_id, ml_models_dir, ml_models_start_script, ml_server_port, models_dir, root_dir, source_ml_models_dir, MODEL_BUCKET, TRANSFER_AGENT_ID};
+use super::config::{llama_server_port, logs_dir, ml_model_config, ml_model_config_with_id, ml_models_dir, ml_models_start_script, ml_server_port, models_dir, source_ml_models_dir, MODEL_BUCKET, TRANSFER_AGENT_ID};
 use crate::chains::contract::ModelInfo;
 use crate::s3_minio::client::MinioClient;
 use common::error::Error;

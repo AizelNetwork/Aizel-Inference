@@ -71,7 +71,7 @@ impl Node {
         let address = format!("http://{}", self.address.to_string());
         for (network_id, network) in AIZEL_CONFIG.networks.iter().enumerate() {
             if !Contract::query_public_key_exist(self.secret.name.encode(), network).await? {
-                Contract::register(
+                match Contract::register(
                     AIZEL_CONFIG.node_name.clone(),
                     AIZEL_CONFIG.node_bio.clone(),
                     address.clone(),
@@ -81,8 +81,13 @@ impl Node {
                     AIZEL_CONFIG.initial_stake,
                     network
                 )
-                .await?;
-                info!("successfully registered on network {}", network);
+                .await {
+                    Ok(_) => {info!("successfully registered on network {}", network);}
+                    Err(e) => {
+                        error!("failed to register on network {}, reason: {}", network, e.to_string());
+                    }
+                }
+                
             } else {
                 info!("already registerd")
             }
