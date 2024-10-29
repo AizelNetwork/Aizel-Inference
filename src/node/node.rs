@@ -35,7 +35,7 @@ impl Node {
 
         let secret = match &AIZEL_CONFIG.node_secret {
             Some(s) => {
-                if s.len() != 64 || s.len() != 66 {
+                if s.len() != 64 && s.len() != 66 {
                     error!("the secret length is not 64 or 66, please input correct node secret in your aizel_config.yml file");
                     return Err(Error::InvalidArgumentError { argument: "node secret".to_string(), message: "the secret length is not 64 or 66, please input correct node secret in your aizel_config.yml file".to_string() });
                 }
