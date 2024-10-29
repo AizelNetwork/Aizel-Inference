@@ -11,4 +11,4 @@ node_name: test_node
 node_bio: test_bio
 initial_stake: 200000000000
 within_tee: true
-node_secret: 7e649ca685ea924b08773f50b565e0ff8cb1c6718e31547267a00b3233acc280
+node_secret: 1bf69ba873c41d517cbbe574abbdd39adc0e5c3ca7dc5122313694decca4a570

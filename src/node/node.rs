@@ -15,7 +15,7 @@ use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tonic::transport::Server;
-
+use ethers::{providers::{Http, Provider}, signers::{LocalWallet, Signer}, middleware::NonceManagerMiddleware};
 pub struct Node {
     pub address: SocketAddr,
     pub secret: Secret,
@@ -55,8 +55,14 @@ impl Node {
     }
 
     pub async fn register(&self) -> Result<(), Error> {
-        for (_, n) in NONCE_MANAGERS.iter() {
-            let _ = n.initialize_nonce(None).await;
+        for (network, n) in NONCE_MANAGERS.iter() {
+            let config = NETWORK_CONFIGS.get().unwrap().iter().find(|c| {
+                c.network == *network
+            }).unwrap();
+            let provider = Provider::<Http>::try_from(config.rpc_url.clone()).unwrap();
+            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(config.chain_id);
+            let middle =  NonceManagerMiddleware::new(provider, wallet.address());
+            let _ = n.initialize_nonce(middle.initialize_nonce(None).await.unwrap());
         }
         let tee_type = self.agent.get_tee_type().unwrap();
         if AIZEL_CONFIG.within_tee {

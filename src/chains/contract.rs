@@ -6,7 +6,7 @@ use ethers::core::{
 };
 use ethers::{
     contract::abigen,
-    middleware::{SignerMiddleware, NonceManagerMiddleware},
+    middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
     types::{Address, Bytes, U256, H160},
@@ -15,7 +15,7 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use std::{collections::HashMap, str::FromStr};
 use std::sync::Arc;
-
+use super::nonce_manager::LocalNonceManager;
 #[derive(Debug)]
 pub struct ModelInfo {
     pub name: String,
@@ -196,9 +196,14 @@ lazy_static! {
 }
 
 impl Contract {
-    pub fn get_nonce(network: &str) -> Result<U256, Error> {
+    pub async fn get_nonce(network: &str) -> Result<U256, Error> {
         let nonce_manager = NONCE_MANAGERS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
-        Ok(nonce_manager.next())
+        Ok(nonce_manager.next().await)
+    }
+
+    pub async fn unuse_nonce(network: &str, unused: U256) -> Result<(), Error> {
+        let nonce_manager = NONCE_MANAGERS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
+        Ok(nonce_manager.save_unused(unused).await)
     }
 
     pub async fn register(
@@ -220,13 +225,19 @@ impl Contract {
             data_node_id.into(),
             tee_type.into(),
         );
-        let nonce = Self::get_nonce(network)?;
+        let nonce = Self::get_nonce(network).await?;
         info!("register nonce {}", nonce);
-        let tx = tx.nonce::<U256>(nonce);
+        let tx = tx.nonce::<U256>(nonce.clone());
         let tx = tx.value::<U256>(stake_amount.into());
-        let _ = tx.send().await.map_err(|e| Error::RegistrationError {
-            message: e.to_string(),
-        })?;
+        match tx.send().await {
+            Ok(_) => {}
+            Err(e) => {
+                Self::unuse_nonce(network, nonce).await?;
+                return Err(Error::RegistrationError {
+                    message: e.to_string(),
+                });
+            }
+        }
         Ok(())
     }
 
@@ -251,15 +262,19 @@ impl Contract {
     ) -> Result<(), Error> {
         let contract = INFERENCE_CONTRACTS.get(network).ok_or(Error::NetworkConfigNotFoundError { network: network.to_string() })?;
         let tx = contract.submit_inference(request_id.into(), output_hash, report_hash);
-        let nonce: U256 = Self::get_nonce(network)?;
+        let nonce: U256 = Self::get_nonce(network).await?;
         info!("submit inference: network {} request id {}, nonce {}", network, request_id, nonce);
-        let tx = tx.nonce::<U256>(nonce);
-        let _pending_tx = tx.send().await.map_err(|e| {
-            error!("failed to submit inference result: {}", e.to_string());
-            Error::InferenceError {
-                message: format!("failed to submit inference reuslt {}", e.to_string()),
+        let tx = tx.nonce::<U256>(nonce.clone());
+        match tx.send().await {
+            Ok(_) => {},
+            Err(e) => {
+                error!("failed to submit inference result: {}", e.to_string());
+                Self::unuse_nonce(network, nonce).await?;
+                return Err(Error::InferenceError {
+                    message: format!("failed to submit inference reuslt {}", e.to_string()),
+                });
             }
-        })?;
+        }
         Ok(())
     }
 
@@ -360,20 +375,25 @@ impl Contract {
             amount,
             Bytes::from_iter(signature),
         );
-        let tx = tx.nonce::<U256>(Self::get_nonce(network)?);
-        let _pending_tx = tx.send().await.map_err(|e| Error::InferenceError {
-            message: format!("failed to submit inference reuslt {}", e.to_string()),
-        })?;
+        let nonce = Self::get_nonce(network).await?;
+        let tx = tx.nonce::<U256>(nonce.clone());
+        match tx.send().await {
+            Ok(_) => {},
+            Err(e) => {
+                Self::unuse_nonce(network, nonce).await?;
+                return Err(Error::InferenceError {
+                    message: format!("failed to transfer token {}", e.to_string()),
+                });
+            }
+        }
         Ok(())
     }
 }
 
 lazy_static! {
-    pub static ref NONCE_MANAGERS: HashMap<String, NonceManagerMiddleware<Provider<Http>>> = {
+    pub static ref NONCE_MANAGERS: HashMap<String, LocalNonceManager> = {
         NETWORK_CONFIGS.get().unwrap().iter().map(|c| {
-            let provider = Provider::<Http>::try_from(c.rpc_url.clone()).unwrap();
-            let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
-            (c.network.clone(), NonceManagerMiddleware::new(provider, wallet.address()))
+            (c.network.clone(), LocalNonceManager::new())
         }).collect()
     };
 
