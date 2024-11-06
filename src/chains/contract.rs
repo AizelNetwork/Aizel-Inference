@@ -451,7 +451,7 @@ lazy_static! {
             let wallet = AIZEL_CONFIG.wallet_sk.parse::<LocalWallet>().unwrap().with_chain_id(c.chain_id);
             let signer = Arc::new(SignerMiddleware::new(provider, wallet));
             let address = match c.contracts.iter().find(|a| {
-                a.name == "MODEL"
+                a.name == "TransferAgent"
             }) {
                 Some(c) => c.address,
                 None => H160::zero()

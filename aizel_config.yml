@@ -1,8 +1,8 @@
 ---
 minio_account: aizel_admin_key
 minio_password: aizel_admin_pwd
-data_nodes: [0, 0, 0]
-networks: ["aizel", "krest", "peaq"]
+data_nodes: [0, 0, 0, 0]
+networks: ["aizel", "krest", "peaq", "reddio"]
 public_data_node_url: http://10.148.0.3:9112
 gate_url: http://34.142.156.174:7878
 config_server_url: http://34.124.144.235:8081

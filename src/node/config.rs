@@ -31,8 +31,7 @@ pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 pub const LLAMA_SERVER_PORT: u16 = 8888;
 pub const ML_SERVER_PORT: u16 = 9888;
 
-pub const TRANSFER_AGENT_ID: u64 = 2;
-pub const ENERGE_MODEL_ID: u64 = 6;
+pub const TRANSFER_AGENT_ID: u64 = 2;   
 lazy_static! {
     pub static ref COIN_ADDRESS_MAPPING: HashMap<String, HashMap<String, String>> = {
         let mut res = HashMap::new();
@@ -52,6 +51,15 @@ lazy_static! {
             );
             res.insert("avax".to_string(), coin_address_mapping);
         }
+        {
+            let mut coin_address_mapping = HashMap::new();
+            coin_address_mapping.insert(
+                "USDT".to_string(),
+                "0x792DA88707f8802e2575E7913D2a87601C55E717".to_string(),
+            );
+            res.insert("reddio".to_string(), coin_address_mapping);
+        }
+
         res
     };
 }
