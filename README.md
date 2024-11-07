@@ -1,6 +1,12 @@
 # AizelInference
 
-## Build on Local 
+## Natural Language TransferAgent
+
+The natural language transfer agent is an innovative feature supported by Aizel inference nodes. Users can submit a simple sentence, such as "Send 10 USDT to this address." The AI model will automatically identify the type of cryptocurrency, recipient address, and transfer amount within the natural language statement. Then, the inference node will automatically call the transfer contract to complete the transaction.
+
+`src/node/model_client.rs` contains the source code of the `TransferAgentClient`. It uses function call provided by llama model to identify the components in a sentence.
+
+## Local Build
 ### Install Dependencies
 Ubuntu:
 ```
