@@ -1,5 +1,7 @@
 # AizelInference
+> Notice
 
+> Aizel inference node is powered by Trusted Execution Environment (TEE) to provide trusted and verifiable execution of AI inference. Aizel project is under active developing so the code and config are not fully released now. 
 ## Natural Language TransferAgent
 
 The natural language transfer agent is an innovative feature supported by Aizel inference nodes. Users can submit a simple sentence, such as "Send 10 USDT to this address." The AI model will automatically identify the type of cryptocurrency, recipient address, and transfer amount within the natural language statement. Then, the inference node will automatically call the transfer contract to complete the transaction.
